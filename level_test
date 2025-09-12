@@ -1,0 +1,53 @@
+type LevelConfig = {
+  // 棋盤與佈局
+  rows: number;                        // 預設 15
+  cols: number;                        // 預設 9
+  minDistFromStartForKey: number;      // 紅/黃 至起點最小曼哈頓距離，預設 5
+
+  // 迷霧
+  fog: {
+    enabled: boolean;                  // 是否開啟迷霧，預設 true
+    playerRadius: number;              // 玩家視野半徑(格)，預設 1.8
+    monsterRadius: number;             // 怪物視野半徑(格)，預設 0.8（=0 則不開洞）
+    revealRadiusKey: number;           // 造訪紅/黃後留下的洞半徑，預設 0.8（=0 不留洞）
+    revealRadiusOther: number;         // 造訪非關鍵點後留下洞半徑，預設 0（=0 不留洞）
+  };
+
+  // 特殊點（紅 / 黃 / 藍 / 綠）
+  specials: {
+    redCount: number;                  // 紅點數量，預設 4
+    blueGreenRatio: number;            // 0~1，非紅/黃/起點的大點中有多少比例為藍；其餘為綠
+    gapRules: {
+      redGap: number;                  // 距離預設 4
+      yellowGap: number;               // 距離預設 4
+      othersGapMix: { p: number; alt: number }; // 其他大點：以機率 p 用 gap=4，否則 gap=alt(預設3)
+    };
+  };
+
+  // 橋樑經濟
+  bridges: {
+    start: number;                     // 起始橋數，預設 10
+    greenRefillTo: number;             // 踩綠若低於此值補到此值，預設 5
+    blueGain: number;                  // 藍 +橋量，預設 +4
+    redGain: number;                   // 每顆紅首次 +橋量，預設 +5
+    yellowGain: number;                // 黃 +橋量，預設 +3
+  };
+
+  // 怪物
+  monsters: {
+    speedMs: number;                   // 步移時間(ms)；越小越快，預設 750
+    spawnOnRed: number;                // 踩到新紅時產怪數；預設 1（0 不產；≥2 依序每 0.3s 多生一隻）
+    extraAfterNthBridge: {             // 第 N 條橋後、延遲 t 秒再生 1 隻
+      n: number;                       // 預設 2
+      delaySec: number;                // 預設 3
+    };
+  };
+
+  // 空洞（移除的白格）
+  holes: {
+    ratio: number;                     // 空洞比例或固定數（例如 0.06 代表 6%），預設沿用現值
+    minGap: number;                    // 洞與洞彼此最小距離(曼哈頓)，預設 3
+    excludeAdjTo: Array<"start"|"red"|"yellow">; // 不可放於哪些類型的鄰格，預設 ["start","red","yellow"]
+    maxTries: number;                  // 生成退讓上限，避免死迴圈，預設 400
+  };
+};

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>關卡遊戲頁</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121821; --grid:#203044; --node:#e5e7eb; --node-hover:#fff;
+      --bridge:#6ee7b7; --bridge-new:#93c5fd; --player:#f59e0b; --neighbor:#34d399;
+      --green:#22c55e; --blue:#3b82f6; --red:#ef4444; --orange:#facc15; --monster:#a855f7; --warn:#ef4444; --text:#d1d5db; --muted:#9ca3af;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --topbar-h: 50px; /* toolbar(38) + padding(6+6) */
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Helvetica,Arial}
+    .wrap{position:relative;display:grid;grid-template-columns:200px 1fr;gap:8px;height:100dvh;padding:6px;box-sizing:border-box}
+
+    .panel{background:var(--panel);border-radius:16px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
+    .panel h1{font-size:14px;margin:0 0 2px;opacity:.85}
+
+    .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;overflow-x:visible;white-space:normal;}
+    .btn{background:#1f2937;color:#e5e7eb;border:1px solid #374151;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600;width:88px;flex:0 0 88px;text-align:center}
+    .badge{display:flex;align-items:center;background:#0f172a;border:1px solid #172036;border-radius:999px;padding:0 10px;font-size:12px;color:#94a3b8;height:32px;line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto}
+
+    .stage{background:var(--panel);border-radius:16px;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px #0f172a,0 10px 30px rgba(0,0,0,.25);width:auto;height:100%;max-width:100%;justify-self:center;touch-action:none}
+    .stage>svg{position:absolute;inset:0;width:100%;height:100%}
+
+    .grid-line{stroke:var(--grid);stroke-width:1}
+    .bridge{stroke:var(--bridge);stroke-width:4;stroke-linecap:round;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}
+    .bridge.new{stroke:var(--bridge-new)}
+
+    .node{cursor:pointer;transition:r .12s ease;fill:var(--node)}
+    .node:hover{r:13;fill:var(--node-hover)}
+    .node.neighbor{stroke:var(--neighbor);stroke-width:2}
+    .node.blocked{stroke:var(--warn);stroke-width:2}
+
+    .node.green{fill:var(--green);stroke:#064e3b;stroke-width:2}
+    .node.green:hover{r:21}
+    .node.blue{fill:var(--blue);stroke:#1e40af;stroke-width:2}
+    .node.blue.used{fill:none;stroke:var(--blue);stroke-width:3;pointer-events:all}
+    .node.red{fill:var(--red);stroke:#7f1d1d;stroke-width:2}
+    .node.orange{fill:var(--orange);stroke:#7c2d12;stroke-width:2}
+    .ring{pointer-events:none}
+    .red-ring{fill:none;stroke:var(--red);stroke-width:4;opacity:.9}
+
+    .player{fill:var(--player);stroke:#0008;stroke-width:1.5;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+    .player-text{font: 700 14px/1 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto; fill:#111; text-anchor:middle; dominant-baseline:central; pointer-events:none}
+    .player-group{ transition: transform .32s ease-out; will-change: transform; }
+
+    .monster{ fill: var(--monster); stroke:#0008; stroke-width:1.5; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+    .monster-group{ transition: transform .7s ease-out; will-change: transform; }
+
+    @media (max-width:920px){
+      .wrap{grid-template-columns:1fr; padding:0; gap:0; height:100dvh}
+      .panel{position:absolute; top:var(--safe-top); left:var(--safe-left); z-index:3; background:rgba(18,24,33,.85); backdrop-filter: blur(6px); padding:6px 8px; border-radius:10px}
+      .panel h1{display:none}
+      .toolbar{
+        height:38px;
+        flex-wrap:nowrap !important;
+        overflow-x:auto !important;
+        white-space:nowrap !important;
+      }
+      .btn{width:84px;flex-basis:84px}
+      .stage{border-radius:0; height:calc(100dvh - var(--safe-top) - var(--topbar-h)); width:auto; max-width:100%; margin:calc(var(--safe-top) + var(--topbar-h)) auto 0}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1>關卡遊戲頁</h1>
+      <div class="toolbar">
+        <span class="badge" id="levelName">關卡</span>
+        <button class="btn" id="homeBtn">首頁</button>
+        <button class="btn" id="startBtn">開始</button>
+        <div class="badge" id="status">紅點:0/4</div>
+      </div>
+    </section>
+    <section class="stage">
+      <svg id="svg" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+            <feGaussianBlur stdDeviation="15"/>
+          </filter>
+          <mask id="viewMask">
+            <rect id="maskBG" x="0" y="0" width="1000" height="1000" fill="black"/>
+            <g id="maskGroup" filter="url(#softBlur)">
+              <circle id="maskPlayer" cx="0" cy="0" r="0" fill="white"/>
+            </g>
+          </mask>
+        </defs>
+        <g id="viewport" mask="url(#viewMask)">
+          <g id="grid"></g>
+          <g id="bridges"></g>
+          <g id="nodes"></g>
+          <g id="monstersLayer"></g>
+          <g id="playerLayer"></g>
+        </g>
+      </svg>
+    </section>
+  </div>
+<script>
+(function(){
+  'use strict';
+  // ===== URL 參數 =====
+  function getQuery(name){ const m=location.search.match(new RegExp('[?&]'+name+'=([^&]*)')); return m?decodeURIComponent(m[1]):null; }
+  var levelKey=getQuery('level')||'level1';
+
+  // ===== DOM =====
+  var svgEl=document.getElementById('svg');
+  var stageEl=document.querySelector('.stage');
+  var gridG=document.getElementById('grid');
+  var bridgesG=document.getElementById('bridges');
+  var nodesG=document.getElementById('nodes');
+  var monstersG=document.getElementById('monstersLayer');
+  var playerG=document.getElementById('playerLayer');
+  var startBtn=document.getElementById('startBtn');
+  var statusEl=document.getElementById('status');
+  var homeBtn=document.getElementById('homeBtn');
+  var levelNameEl=document.getElementById('levelName');
+  if(homeBtn){ homeBtn.addEventListener('click', function(){ window.location.href='index.html'; }); }
+
+  // ===== 幾何 / 畫布 =====
+  var NR=15, NC=9, PAD=24, SVG_W=1000, SVG_H=1000, STEP, GRID_W, GRID_H, PADX, PADY;
+  function computeGeometry(){
+    var BASE=1000; SVG_W=BASE; SVG_H=Math.round(BASE*NR/NC);
+    if(svgEl) svgEl.setAttribute('viewBox','0 0 '+SVG_W+' '+SVG_H);
+    STEP=Math.min((SVG_W-2*PAD)/(NC-1),(SVG_H-2*PAD)/(NR-1));
+    GRID_W=(NC-1)*STEP; GRID_H=(NR-1)*STEP; PADX=(SVG_W-GRID_W)/2; PADY=(SVG_H-GRID_H)/2;
+    if(stageEl) stageEl.style.aspectRatio=NC+' / '+NR;
+    var maskBG=document.getElementById('maskBG');
+    if(maskBG){ maskBG.setAttribute('x',-64); maskBG.setAttribute('y',-64); maskBG.setAttribute('width',SVG_W+128); maskBG.setAttribute('height',SVG_H+128); }
+  }
+  function layoutStage(){
+    if(!stageEl) return; var isMobile=window.matchMedia('(max-width:920px)').matches; var vw=window.innerWidth, vh=window.innerHeight; var ratio=NC/NR; var safeTop=0, topbarH=50;
+    try{ var cs=getComputedStyle(document.documentElement); var st=parseFloat(cs.getPropertyValue('--safe-top'))||0; safeTop=st; }catch(e){}
+    var availW=isMobile?vw:stageEl.parentElement.clientWidth; var availH=isMobile?(vh-safeTop-topbarH):stageEl.parentElement.clientHeight; if(availW<=0||availH<=0){ availW=vw; availH=vh; }
+    var w=availW, h=w/ratio; if(h>availH){ h=availH; w=h*ratio; }
+    stageEl.style.width=Math.floor(w)+'px'; stageEl.style.height=Math.floor(h)+'px'; stageEl.style.marginTop=isMobile?(safeTop+topbarH)+'px':'0px';
+  }
+  computeGeometry(); setTimeout(layoutStage,0); window.addEventListener('resize', layoutStage);
+
+  // ===== 狀態與設定 =====
+  var cfg={};
+  var P_MIX=0.5; // others gap=4 機率
+  var RED_TARGET=4;
+  var MIN_DIST_KEY=5;
+  var MONSTER_STEP_MS=750;
+  var FOG_ENABLED=true, PLAYER_R=1.8, MONSTER_R=0.8, REVEAL_KEY_R=0.8, REVEAL_OTHER_R=0;
+  var BLUE_GREEN_RATIO=0.55;
+  var GAP_RED=4, GAP_YELLOW=4, GAP_OTHER_ALT=3;
+  var BRIDGE_START=10, GREEN_REFILL_TO=5, BLUE_GAIN=4, RED_GAIN=5, YELLOW_GAIN=3;
+  var SPAWN_ON_RED=1, EXTRA_AFTER_N=2, EXTRA_AFTER_DELAY=3; // sec
+  var HOLE_RATIO=0.06, HOLE_MINGAP=3, HOLE_EXCL=['start','red','yellow'], HOLE_MAXTRIES=400;
+
+  var state={
+    player:{r:Math.floor(NR/2),c:Math.floor(NC/2)},
+    start:{r:Math.floor(NR/2),c:Math.floor(NC/2)},
+    bridges:new Set(),
+    specials:new Map(), // key -> type
+    specialGaps:new Map(),
+    blueUsed:new Set(),
+    redVisited:new Set(),
+    redTotal:RED_TARGET,
+    orangeKey:null,
+    orangeVisited:false,
+    removed:new Set(),
+    monsters:[],
+    moving:false, moveToken:0,
+    bridgesLeft:BRIDGE_START,
+    gameOver:false,
+    bridgesBuilt:0,
+    extraMonsterTimer:null,
+    animatingBridge:false,
+    buildingEdges:new Set(),
+    maskPos:null
+  };
+
+  function loadConfigAndInit(){
+    fetch('levels/'+levelKey+'.json')
+      .then(function(r){ if(!r.ok) throw new Error('找不到設定檔'); return r.json(); })
+      .then(function(c){ cfg=c||{}; applyConfig(); if(levelNameEl) levelNameEl.textContent = (cfg.name||levelKey); reset(); })
+      .catch(function(e){ if(levelNameEl) levelNameEl.textContent=levelKey; if(statusEl) statusEl.textContent='載入失敗：'+e.message; reset(); });
+  }
+
+  function applyConfig(){
+    // 尺寸/距離
+    NR = (cfg.rows||NR); NC = (cfg.cols||NC); MIN_DIST_KEY = (cfg.minDistFromStartForKey||MIN_DIST_KEY);
+    // 迷霧
+    if(cfg.fog){
+      FOG_ENABLED = (cfg.fog.enabled!==undefined?cfg.fog.enabled:FOG_ENABLED);
+      PLAYER_R = (cfg.fog.playerRadius!==undefined?cfg.fog.playerRadius:PLAYER_R);
+      MONSTER_R = (cfg.fog.monsterRadius!==undefined?cfg.fog.monsterRadius:MONSTER_R);
+      REVEAL_KEY_R = (cfg.fog.revealRadiusKey!==undefined?cfg.fog.revealRadiusKey:REVEAL_KEY_R);
+      REVEAL_OTHER_R = (cfg.fog.revealRadiusOther!==undefined?cfg.fog.revealRadiusOther:REVEAL_OTHER_R);
+    }
+    // 特殊點
+    if(cfg.specials){
+      RED_TARGET = (cfg.specials.redCount!==undefined?cfg.specials.redCount:RED_TARGET);
+      BLUE_GREEN_RATIO = (cfg.specials.blueGreenRatio!==undefined?cfg.specials.blueGreenRatio:BLUE_GREEN_RATIO);
+      if(cfg.specials.gapRules){
+        GAP_RED = (cfg.specials.gapRules.redGap||GAP_RED);
+        GAP_YELLOW = (cfg.specials.gapRules.yellowGap||GAP_YELLOW);
+        if(cfg.specials.gapRules.othersGapMix){
+          P_MIX = (cfg.specials.gapRules.othersGapMix.p!==undefined?cfg.specials.gapRules.othersGapMix.p:P_MIX);
+          GAP_OTHER_ALT = (cfg.specials.gapRules.othersGapMix.alt!==undefined?cfg.specials.gapRules.othersGapMix.alt:GAP_OTHER_ALT);
+        }
+      }
+    }
+    // 橋樑經濟
+    if(cfg.bridges){
+      BRIDGE_START = (cfg.bridges.start!==undefined?cfg.bridges.start:BRIDGE_START);
+      GREEN_REFILL_TO = (cfg.bridges.greenRefillTo!==undefined?cfg.bridges.greenRefillTo:GREEN_REFILL_TO);
+      BLUE_GAIN = (cfg.bridges.blueGain!==undefined?cfg.bridges.blueGain:BLUE_GAIN);
+      RED_GAIN = (cfg.bridges.redGain!==undefined?cfg.bridges.redGain:RED_GAIN);
+      YELLOW_GAIN = (cfg.bridges.yellowGain!==undefined?cfg.bridges.yellowGain:YELLOW_GAIN);
+    }
+    // 怪物
+    if(cfg.monsters){
+      MONSTER_STEP_MS = (cfg.monsters.speedMs!==undefined?cfg.monsters.speedMs:MONSTER_STEP_MS);
+      SPAWN_ON_RED = (cfg.monsters.spawnOnRed!==undefined?cfg.monsters.spawnOnRed:SPAWN_ON_RED);
+      if(cfg.monsters.extraAfterNthBridge){
+        EXTRA_AFTER_N = (cfg.monsters.extraAfterNthBridge.n!==undefined?cfg.monsters.extraAfterNthBridge.n:EXTRA_AFTER_N);
+        EXTRA_AFTER_DELAY = (cfg.monsters.extraAfterNthBridge.delaySec!==undefined?cfg.monsters.extraAfterNthBridge.delaySec:EXTRA_AFTER_DELAY);
+      }
+    }
+    // 空洞
+    if(cfg.holes){
+      HOLE_RATIO = (cfg.holes.ratio!==undefined?cfg.holes.ratio:HOLE_RATIO);
+      HOLE_MINGAP = (cfg.holes.minGap!==undefined?cfg.holes.minGap:HOLE_MINGAP);
+      HOLE_EXCL = (cfg.holes.excludeAdjTo||HOLE_EXCL);
+      HOLE_MAXTRIES = (cfg.holes.maxTries!==undefined?cfg.holes.maxTries:HOLE_MAXTRIES);
+    }
+    computeGeometry(); setTimeout(layoutStage,0);
+  }
+
+  // ===== 小工具 =====
+  function pos(r,c){ return {x:PADX+c*STEP,y:PADY+r*STEP}; }
+  function inBounds(r,c){ return r>=0&&r<NR&&c>=0&&c<NC; }
+  function keyOf(p){ return p.r+","+p.c; }
+  function manhattan(a,b){ return Math.abs(a.r-b.r)+Math.abs(a.c-b.c); }
+  function isNeighbor(a,b){ return manhattan(a,b)===1; }
+  function edgeKey(a,b){ var k1=keyOf(a),k2=keyOf(b); return (k1<k2)?(k1+"|"+k2):(k2+"|"+k1); }
+  function hasBridge(a,b){ return state.bridges.has(edgeKey(a,b)); }
+  function isBig(r,c){ return state.specials.has(r+","+c); }
+  function degreeAt(p){ var d=0; state.bridges.forEach(function(e){ var ab=e.split('|'); if(ab[0]===keyOf(p)||ab[1]===keyOf(p)) d++; }); return d; }
+
+  // ===== 繪圖 =====
+  function drawGrid(){ gridG.innerHTML=''; for(var i=0;i<NR;i++){ var y=PADY+i*STEP; var h=document.createElementNS('http://www.w3.org/2000/svg','line'); h.setAttribute('x1',PADX); h.setAttribute('y1',y); h.setAttribute('x2',SVG_W-PADX); h.setAttribute('y2',y); h.setAttribute('class','grid-line'); gridG.appendChild(h);} for(var j=0;j<NC;j++){ var x=PADX+j*STEP; var v=document.createElementNS('http://www.w3.org/2000/svg','line'); v.setAttribute('x1',x); v.setAttribute('y1',PADY); v.setAttribute('x2',x); v.setAttribute('y2',SVG_H-PADY); v.setAttribute('class','grid-line'); gridG.appendChild(v);} }
+  function drawNodes(){ nodesG.innerHTML=''; for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){ var k=r+","+c; if(state.removed.has(k)) continue; var p=pos(r,c), t=state.specials.get(k); if(t==='red' && state.redVisited.has(k)){ var ring=document.createElementNS('http://www.w3.org/2000/svg','circle'); ring.setAttribute('cx',p.x); ring.setAttribute('cy',p.y); ring.setAttribute('r',22); ring.setAttribute('class','ring red-ring'); nodesG.appendChild(ring);} var dot=document.createElementNS('http://www.w3.org/2000/svg','circle'); dot.setAttribute('cx',p.x); dot.setAttribute('cy',p.y); dot.setAttribute('r', t? 19 : 12); var cls='node'; if(t==='green') cls+=' green'; else if(t==='blue') cls+=' blue'+(state.blueUsed.has(k)?' used':''); else if(t==='red') cls+=' red'; else if(t==='orange') cls+=' orange'; dot.setAttribute('class',cls); if(t==='blue' && state.blueUsed.has(k)){ dot.setAttribute('fill','none'); dot.setAttribute('pointer-events','all'); } dot.dataset.r=r; dot.dataset.c=c; dot.addEventListener('click', onNodeClick); nodesG.appendChild(dot);} highlightNeighbors(); }
+  function drawBridges(){ bridgesG.innerHTML=''; state.bridges.forEach(function(e){ var ab=e.split('|'); var a=ab[0].split(',').map(Number); var b=ab[1].split(',').map(Number); var pa=pos(a[0],a[1]), pb=pos(b[0],b[1]); var line=document.createElementNS('http://www.w3.org/2000/svg','line'); line.setAttribute('x1',pa.x); line.setAttribute('y1',pa.y); line.setAttribute('x2',pb.x); line.setAttribute('y2',pb.y); line.setAttribute('class','bridge'); bridgesG.appendChild(line); }); }
+  function drawPlayer(){ var group=playerG.querySelector('#pawnGroup'); if(!group){ group=document.createElementNS('http://www.w3.org/2000/svg','g'); group.setAttribute('id','pawnGroup'); group.setAttribute('class','player-group'); var pawn=document.createElementNS('http://www.w3.org/2000/svg','circle'); pawn.setAttribute('id','pawn'); pawn.setAttribute('r',14); pawn.setAttribute('class','player'); var txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('id','pawnText'); txt.setAttribute('class','player-text'); group.appendChild(pawn); group.appendChild(txt); playerG.appendChild(group);} var p=pos(state.player.r,state.player.c); group.style.transform='translate3d('+p.x+'px,'+p.y+'px,0)'; var t=playerG.querySelector('#pawnText'); if(t) t.textContent=state.bridgesLeft; updateViewMask(); }
+  function drawMonster(m){ var g=document.getElementById('monster-'+m.id); var p=pos(m.pos.r,m.pos.c); if(!g){ g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('id','monster-'+m.id); g.setAttribute('class','monster-group'); var body=document.createElementNS('http://www.w3.org/2000/svg','circle'); body.setAttribute('r',12); body.setAttribute('class','monster'); g.appendChild(body); monstersG.appendChild(g);} g.style.transform='translate3d('+p.x+'px,'+p.y+'px,0)'; }
+
+  // ===== 迷霧 =====
+  function updateViewMask(){
+    var vp=document.getElementById('viewport'); if(!vp) return; if(!FOG_ENABLED){ vp.removeAttribute('mask'); return; } else { vp.setAttribute('mask','url(#viewMask)'); }
+    var group=document.getElementById('maskGroup'); if(!group) return;
+    var base = state.maskPos ? state.maskPos : pos(state.player.r,state.player.c);
+    var playerCircle=document.getElementById('maskPlayer'); if(!playerCircle){ playerCircle=document.createElementNS('http://www.w3.org/2000/svg','circle'); playerCircle.setAttribute('id','maskPlayer'); playerCircle.setAttribute('fill','white'); group.appendChild(playerCircle); }
+    playerCircle.setAttribute('cx',base.x); playerCircle.setAttribute('cy',base.y); playerCircle.setAttribute('r', STEP*PLAYER_R);
+
+    // 怪物洞
+    var rM=STEP*MONSTER_R;
+    if(MONSTER_R>0 && state.monsters && state.monsters.length){ for(var i=0;i<state.monsters.length;i++){ var m=state.monsters[i]; var id='maskMonster-'+m.id; var cm=document.getElementById(id); if(!cm){ var mp=pos(m.pos.r,m.pos.c); cm=document.createElementNS('http://www.w3.org/2000/svg','circle'); cm.setAttribute('id',id); cm.setAttribute('fill','white'); cm.setAttribute('cx',mp.x); cm.setAttribute('cy',mp.y); cm.setAttribute('r',rM); group.appendChild(cm);} else { cm.setAttribute('r',rM); } } }
+
+    // 造訪洞重繪
+    var olds=group.querySelectorAll('[id^="maskVisited-"]'); olds.forEach(function(n){ if(n&&n.parentNode) n.parentNode.removeChild(n); });
+    function addReveal(id,x,y,r){ if(r<=0) return; var c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('id',id); c.setAttribute('fill','white'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',r); group.appendChild(c); }
+    // 紅/黃（orange）
+    if(REVEAL_KEY_R>0){ var rKey=STEP*REVEAL_KEY_R; state.redVisited.forEach(function(k){ var ab=k.split(',').map(Number); var pp=pos(ab[0],ab[1]); addReveal('maskVisited-red-'+k, pp.x, pp.y, rKey); }); if(state.orangeVisited && state.orangeKey){ var ab2=state.orangeKey.split(',').map(Number); var pp2=pos(ab2[0],ab2[1]); addReveal('maskVisited-orange', pp2.x, pp2.y, rKey); } }
+    // 其他
+    if(REVEAL_OTHER_R>0 && state.visitedOthers){ var rO=STEP*REVEAL_OTHER_R; state.visitedOthers.forEach(function(k){ var ab=k.split(',').map(Number); var pp=pos(ab[0],ab[1]); addReveal('maskVisited-other-'+k, pp.x, pp.y, rO); }); }
+  }
+  function setFogEnabled(enabled){ FOG_ENABLED=!!enabled; updateViewMask(); }
+
+  // ===== 動畫 =====
+  function animateMonsterFogFollow(m,pFrom,pTo,duration){ if(MONSTER_R<=0) return; var id='maskMonster-'+m.id; var c=document.getElementById(id); if(!c){ var group=document.getElementById('maskGroup'); if(!group) return; c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('id',id); c.setAttribute('fill','white'); var pf=pos(m.pos.r,m.pos.c); c.setAttribute('cx',pf.x); c.setAttribute('cy',pf.y); c.setAttribute('r',STEP*MONSTER_R); group.appendChild(c);} var token=(m.maskToken||0)+1; m.maskToken=token; var t0=performance.now(); function step(now){ if(m.maskToken!==token) return; var t=(now-t0)/duration; if(t>=1){ c.setAttribute('cx',pTo.x); c.setAttribute('cy',pTo.y); return; } if(t<0) t=0; if(t>1) t=1; var e=1-Math.pow(1-t,3); var x=pFrom.x+(pTo.x-pFrom.x)*e; var y=pFrom.y+(pTo.y-pFrom.y)*e; c.setAttribute('cx',x); c.setAttribute('cy',y); requestAnimationFrame(step);} requestAnimationFrame(step); }
+  function animateBridgeGrow(a,b,done){ var pa=pos(a.r,a.c), pb=pos(b.r,b.c); var line=document.createElementNS('http://www.w3.org/2000/svg','line'); line.setAttribute('x1',pa.x); line.setAttribute('y1',pa.y); line.setAttribute('x2',pa.x); line.setAttribute('y2',pa.y); line.setAttribute('class','bridge new'); bridgesG.appendChild(line); var dur=280, t0=performance.now(); function step(now){ var t=Math.min(1,(now-t0)/dur); var x=pa.x+(pb.x-pa.x)*t, y=pa.y+(pb.y-pa.y)*t; line.setAttribute('x2',x); line.setAttribute('y2',y); if(t<1) requestAnimationFrame(step); else { setTimeout(function(){ line.classList.remove('new'); },200); if(done) done(); } } requestAnimationFrame(step); }
+  function waitTransition(){ var g=playerG.querySelector('#pawnGroup'); if(!g) return Promise.resolve(); return new Promise(function(res){ var done=false; var to=setTimeout(function(){ if(!done){done=true; res();}},650); g.addEventListener('transitionend', function(){ if(!done){done=true; clearTimeout(to); res(); } }, {once:true}); }); }
+
+  async function moveAlongPath(path){ if(!path||path.length<2) return; state.moving=true; var token=++state.moveToken; for(var i=1;i<path.length;i++){ if(token!==state.moveToken) break; var from={r:path[i-1].r,c:path[i-1].c}; var to={r:path[i].r,c:path[i].c}; var pFrom=pos(from.r,from.c), pTo=pos(to.r,to.c); state.player={r:to.r,c:to.c}; drawPlayer(); (function(localToken){ var c=document.getElementById('maskPlayer'); state.maskPos={x:pFrom.x,y:pFrom.y}; var t0=performance.now(), dur=320; function step(now){ if(localToken!==state.moveToken){ state.maskPos=null; return; } var t=(now-t0)/dur; if(t>=1){ state.maskPos=null; if(c){ c.setAttribute('cx',pTo.x); c.setAttribute('cy',pTo.y);} updateViewMask(); return; } var e=1-Math.pow(1-Math.max(0,Math.min(1,t)),3); var x=pFrom.x+(pTo.x-pFrom.x)*e; var y=pFrom.y+(pTo.y-pFrom.y)*e; if(c){ c.setAttribute('cx',x); c.setAttribute('cy',y);} requestAnimationFrame(step);} requestAnimationFrame(step); })(token); triggerSpecial(state.player); if(checkCollision()){ state.moving=false; return; } await waitTransition(); } state.moving=false; highlightNeighbors(); }
+
+  // ===== Pathfinding =====
+  function neighbors4(p){ var arr=[{r:p.r-1,c:p.c},{r:p.r+1,c:p.c},{r:p.r,c:p.c-1},{r:p.r,c:p.c+1}]; return arr.filter(function(q){ return inBounds(q.r,q.c) && !state.removed.has(keyOf(q)); }); }
+  function neighborsViaBridges(p){ return neighbors4(p).filter(function(nb){ return hasBridge(p,nb); }); }
+  function bfsPath(start,goal){ var q=[start], seen=new Set([keyOf(start)]), prev=new Map(); while(q.length){ var cur=q.shift(); if(cur.r===goal.r && cur.c===goal.c) break; neighborsViaBridges(cur).forEach(function(nb){ var k=keyOf(nb); if(seen.has(k)) return; seen.add(k); prev.set(k,cur); q.push(nb); }); } var gk=keyOf(goal); if(!prev.has(gk)){ if(hasBridge(start,goal)) return [start,goal]; return null; } var path=[goal], curk=gk; while(!(path[0].r===start.r && path[0].c===start.c)){ var p=prev.get(curk); if(!p) return null; path.unshift(p); curk=keyOf(p);} return path; }
+
+  // ===== 怪物 =====
+  function stepMonster(m){ if(state.gameOver) return; var cur=m.pos; var options=neighborsViaBridges(cur); if(m.prev) options=options.filter(function(nb){ return !(nb.r===m.prev.r && nb.c===m.prev.c); }); var next=null; if(options.length>0){ next=options[Math.floor(Math.random()*options.length)]; m.prev={r:cur.r,c:cur.c}; } else if(m.prev){ next={r:m.prev.r,c:m.prev.c}; m.prev={r:cur.r,c:cur.c}; } else { return; } var pFrom=pos(cur.r,cur.c), pTo=pos(next.r,next.c); m.pos={r:next.r,c:next.c}; drawMonster(m); animateMonsterFogFollow(m,pFrom,pTo,MONSTER_STEP_MS); updateViewMask(); checkCollision(); }
+  function spawnMonster(){ var id=Date.now().toString(36)+Math.random().toString(36).slice(2,7); var m={ id:id, pos:{r:state.start.r,c:state.start.c}, prev:null, timer:null }; state.monsters.push(m); drawMonster(m); updateViewMask(); m.timer=setInterval(function(){ stepMonster(m); }, MONSTER_STEP_MS); }
+  function spawnMonsters(n){ n=n|0; if(n<=0) return; spawnMonster(); for(var i=1;i<n;i++){ setTimeout(spawnMonster, i*1000); } }
+  function checkCollision(){ if(state.gameOver) return true; for(var i=0;i<state.monsters.length;i++){ var m=state.monsters[i]; if(m.pos.r===state.player.r && m.pos.c===state.player.c){ state.gameOver=true; setFogEnabled(false); if(statusEl) statusEl.textContent='遊戲失敗'; state.monsters.forEach(function(mm){ if(mm.timer) clearInterval(mm.timer); }); return true; } } return false; }
+
+  // ===== 遊戲規則 =====
+  function canBuildBridge(a,b){ var ek=edgeKey(a,b); if(hasBridge(a,b)) return false; if(state.buildingEdges && state.buildingEdges.has(ek)) return false; if(state.bridgesLeft<=0) return false; var aBig=isBig(a.r,a.c), bBig=isBig(b.r,b.c); var nextA=degreeAt(a)+1, nextB=degreeAt(b)+1; if(!aBig && nextA>2) return false; if(!bBig && nextB>2) return false; return true; }
+  function addBridge(a,b,moveAfter){ var eKey=edgeKey(a,b); if(!canBuildBridge(a,b)) return; state.buildingEdges.add(eKey); state.animatingBridge=true; animateBridgeGrow(a,b,function(){ if(!state.bridges.has(eKey)){ state.bridges.add(eKey); state.bridgesLeft=Math.max(0,state.bridgesLeft-1); } drawBridges(); drawPlayer(); state.bridgesBuilt++; if(state.bridgesBuilt===EXTRA_AFTER_N && !state.extraMonsterTimer){ state.extraMonsterTimer=setTimeout(function(){ if(!state.gameOver) spawnMonster(); state.extraMonsterTimer=null; }, EXTRA_AFTER_DELAY*1000);} state.buildingEdges.delete(eKey); state.animatingBridge=false; if(moveAfter) movePlayer(b); }); }
+  function movePlayer(to){ if(state.gameOver) return; var from={r:state.player.r,c:state.player.c}; var pFrom=pos(from.r,from.c), pTo=pos(to.r,to.c); state.player={r:to.r,c:to.c}; drawPlayer(); (function(){ var c=document.getElementById('maskPlayer'); state.maskPos={x:pFrom.x,y:pFrom.y}; var t0=performance.now(), dur=320; function step(now){ var t=(now-t0)/dur; if(t>=1){ state.maskPos=null; if(c){ c.setAttribute('cx',pTo.x); c.setAttribute('cy',pTo.y);} updateViewMask(); return; } var e=1-Math.pow(1-Math.max(0,Math.min(1,t)),3); var x=pFrom.x+(pTo.x-pFrom.x)*e; var y=pFrom.y+(pTo.y-pFrom.y)*e; if(c){ c.setAttribute('cx',x); c.setAttribute('cy',y);} requestAnimationFrame(step);} requestAnimationFrame(step); })(); triggerSpecial(state.player); if(checkCollision()) return; highlightNeighbors(); }
+
+  function triggerSpecial(p){
+    var k=keyOf(p), t=state.specials.get(k);
+    if(t==='green'){
+      if(state.bridgesLeft < GREEN_REFILL_TO){ state.bridgesLeft = GREEN_REFILL_TO; drawPlayer(); }
+      // 非關鍵點造訪紀錄
+      if(REVEAL_OTHER_R>0){ state.visitedOthers = state.visitedOthers||new Set(); state.visitedOthers.add(k); updateViewMask(); }
+    } else if(t==='blue'){
+      if(!state.blueUsed.has(k)){ state.blueUsed.add(k); state.bridgesLeft += BLUE_GAIN; drawPlayer(); drawNodes(); }
+      if(REVEAL_OTHER_R>0){ state.visitedOthers = state.visitedOthers||new Set(); state.visitedOthers.add(k); updateViewMask(); }
+    } else if(t==='red'){
+      if(!state.redVisited.has(k)){
+        state.redVisited.add(k); state.bridgesLeft += RED_GAIN; drawPlayer(); drawNodes(); if(SPAWN_ON_RED>0) spawnMonsters(SPAWN_ON_RED); updateViewMask(); if(statusEl) statusEl.textContent='紅點:'+state.redVisited.size+'/'+state.redTotal; }
+    } else if(t==='orange'){
+      var first=!state.orangeVisited; if(first){ state.orangeVisited=true; state.bridgesLeft += YELLOW_GAIN; drawPlayer(); } else { state.orangeVisited=true; }
+      updateViewMask();
+      if(state.redVisited.size>=state.redTotal){ state.gameOver=true; setFogEnabled(false); if(statusEl) statusEl.textContent='成功通關'; }
+    } else {
+      if(REVEAL_OTHER_R>0){ state.visitedOthers = state.visitedOthers||new Set(); state.visitedOthers.add(k); updateViewMask(); }
+    }
+  }
+
+  function onNodeClick(e){ if(state.gameOver||state.animatingBridge) return; var r=+e.currentTarget.dataset.r, c=+e.currentTarget.dataset.c; var target={r:r,c:c}; var here=state.player; if(state.moving){ state.moveToken++; state.moving=false; } if(r===here.r && c===here.c) return; if(isNeighbor(here,target)){ if(hasBridge(here,target)) { movePlayer(target); } else if (canBuildBridge(here,target)) { addBridge(here,target,true); } else { var path=bfsPath(here,target); if(path && path.length>1) { moveAlongPath(path); } else { flashBlocked(e.currentTarget); } } return; } var farPath=bfsPath(here,target); if(farPath && farPath.length>1){ moveAlongPath(farPath); } else { flashBlocked(e.currentTarget); } }
+  function flashBlocked(nodeEl){ nodeEl.classList.add('blocked'); setTimeout(function(){ nodeEl.classList.remove('blocked'); },300); }
+  function highlightNeighbors(){ nodesG.querySelectorAll('.node').forEach(function(n){ n.classList.remove('neighbor'); }); neighbors4(state.player).forEach(function(nb){ var el=nodesG.querySelector('.node[data-r="'+nb.r+'"][data-c="'+nb.c+'"]'); if(el) el.classList.add('neighbor'); }); }
+
+  // ===== 鍵盤 / 觸控 =====
+  var DIRS={ArrowUp:{r:-1,c:0}, ArrowDown:{r:1,c:0}, ArrowLeft:{r:0,c:-1}, ArrowRight:{r:0,c:1}};
+  function actByDirection(d){ if(!d||state.gameOver||state.animatingBridge) return; var here=state.player; var target={r:here.r+d.r,c:here.c+d.c}; if(!inBounds(target.r,target.c)) return; if(state.removed.has(keyOf(target))) return; if(state.moving){ state.moveToken++; state.moving=false; } if(hasBridge(here,target)) { movePlayer(target); return; } if(canBuildBridge(here,target)) { addBridge(here,target,true); return; } }
+  function onKeyDown(e){ if(e.altKey||e.ctrlKey||e.metaKey) return; var d=DIRS[e.key]; if(!d) return; if(e.repeat){ e.preventDefault(); return; } if(state.animatingBridge){ e.preventDefault(); return; } e.preventDefault(); actByDirection(d); }
+  var _touchStart=null; function onTouchStart(ev){ if(!ev.touches||ev.touches.length===0) return; var t=ev.touches[0]; _touchStart={x:t.clientX,y:t.clientY,time:performance.now()}; }
+  function onTouchMove(ev){ if(!_touchStart) return; var t=ev.touches&&ev.touches[0]; if(!t) return; var dx=t.clientX-_touchStart.x, dy=t.clientY-_touchStart.y; if(Math.abs(dx)>10||Math.abs(dy)>10){ ev.preventDefault(); } }
+  function onTouchEnd(ev){ if(!_touchStart) return; var t=ev.changedTouches&&ev.changedTouches[0]; if(!t){ _touchStart=null; return; } var dx=t.clientX-_touchStart.x, dy=t.clientY-_touchStart.y; var adx=Math.abs(dx), ady=Math.abs(dy); var min=24; if(adx<min && ady<min){ _touchStart=null; return; } if(adx>ady) actByDirection(dx>0?DIRS.ArrowRight:DIRS.ArrowLeft); else actByDirection(dy>0?DIRS.ArrowDown:DIRS.ArrowUp); _touchStart=null; }
+
+  // ===== 生成（大點 / 洞） =====
+  function shuffle(arr){ for(var i=arr.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=arr[i]; arr[i]=arr[j]; arr[j]=t; } return arr; }
+  function canPlaceWithGap(r,c,gap){ var ok=true; state.specials.forEach(function(_t, sk){ var ab=sk.split(',').map(Number); var d=Math.abs(ab[0]-r)+Math.abs(ab[1]-c); if(d < gap) ok=false; }); return ok; }
+  function otherGap(){ return Math.random()<P_MIX ? 4 : GAP_OTHER_ALT; }
+
+  function placeRedsAndYellow(){
+    state.redTotal = RED_TARGET;
+    var sr = Math.floor(NR/2), sc = Math.floor(NC/2);
+    function qIndex(r,c){ return (r<sr?0:2) + (c<sc?0:1); }
+    function edgeDist(r,c){ return Math.min(r,c, NR-1-r, NC-1-c); }
+    var quads=[[],[],[],[]];
+    for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){
+      var k=r+","+c; if(k===keyOf(state.start)) continue; if(state.specials.has(k)) continue; quads[qIndex(r,c)].push({r:r,c:c});
+    }
+    for(var i=0;i<4;i++) shuffle(quads[i]);
+    // 每象限 1 顆紅：距起點≥MIN_DIST_KEY 且與所有已放大點距離≥GAP_RED
+    for(var qi=0; qi<RED_TARGET; qi++){
+      var placed=false; var arr=quads[qi%4];
+      for(var i2=0;i2<arr.length;i2++){
+        var p=arr[i2]; var k=keyOf(p); if(manhattan(p,state.start) < MIN_DIST_KEY) continue; if(!canPlaceWithGap(p.r,p.c,GAP_RED)) continue; state.specials.set(k,'red'); state.specialGaps.set(k,GAP_RED); placed=true; break;
+      }
+      if(!placed){ // 全盤退讓
+        var cells=[]; for(var rr=0;rr<NR;rr++) for(var cc=0;cc<NC;cc++){ var p2={r:rr,c:cc}; var k2=keyOf(p2); if(k2===keyOf(state.start)||state.specials.has(k2)) continue; cells.push(p2);} shuffle(cells);
+        for(var j=0;j<cells.length;j++){ var p3=cells[j]; if(manhattan(p3,state.start)<MIN_DIST_KEY) continue; if(!canPlaceWithGap(p3.r,p3.c,GAP_RED)) continue; state.specials.set(keyOf(p3),'red'); state.specialGaps.set(keyOf(p3),GAP_RED); placed=true; break; }
+      }
+    }
+    // 黃（終點）：外圍優先 edgeDist<=1；距任何既有大點≥GAP_YELLOW
+    var ring=[]; for(var r2=0;r2<NR;r2++) for(var c2=0;c2<NC;c2++){ if(edgeDist(r2,c2) <= 1){ var p4={r:r2,c:c2}; var k4=keyOf(p4); if(k4===keyOf(state.start)||state.specials.has(k4)) continue; ring.push(p4);} }
+    shuffle(ring);
+    for(var i3=0;i3<ring.length;i3++){ var pr=ring[i3]; if(manhattan(pr,state.start)<MIN_DIST_KEY) continue; if(canPlaceWithGap(pr.r,pr.c,GAP_YELLOW)){ var ok=keyOf(pr); state.specials.set(ok,'orange'); state.specialGaps.set(ok,GAP_YELLOW); state.orangeKey=ok; break; } }
+  }
+
+  function fillExtrasSpecials(){
+    var occ=[]; state.specials.forEach(function(t,k){ var ab=k.split(',').map(Number); var gap=state.specialGaps.get(k); if(typeof gap!=='number'){ gap=(t==='red'||t==='orange')?4:otherGap(); state.specialGaps.set(k,gap);} occ.push({r:ab[0],c:ab[1],gap:gap}); });
+    function okSpotWithGap(r,c,gNew){ for(var i=0;i<occ.length;i++){ var d=Math.abs(occ[i].r-r)+Math.abs(occ[i].c-c); var need=Math.max(gNew, occ[i].gap); if(d<need) return false; } return true; }
+    var cells=[]; for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){ var k=r+","+c; if(k!==keyOf(state.start) && !state.specials.has(k)) cells.push({r:r,c:c}); }
+    shuffle(cells);
+    for(var i=0;i<cells.length;i++){ var p=cells[i]; var gNew=otherGap(); if(!okSpotWithGap(p.r,p.c,gNew)) continue; var k=keyOf(p); state.specials.set(k,'green'); state.specialGaps.set(k,gNew); occ.push({r:p.r,c:p.c,gap:gNew}); }
+  }
+
+  function colorizeBlueGreen(){
+    var extras=[]; state.specials.forEach(function(t,k){ if(k!==keyOf(state.start) && t==='green') extras.push(k); });
+    var blueNeed=Math.ceil(extras.length*BLUE_GREEN_RATIO); shuffle(extras); for(var i=0;i<extras.length;i++){ if(i<blueNeed) state.specials.set(extras[i],'blue'); else state.specials.set(extras[i],'green'); }
+  }
+
+  function placeHolesByConfig(){
+    var need = Math.ceil((typeof HOLE_RATIO==='number' && HOLE_RATIO<=1)? (NR*NC*HOLE_RATIO) : (HOLE_RATIO|0));
+    function adj1(a,b){ return Math.abs(a.r-b.r)+Math.abs(a.c-b.c)===1; }
+    var start=state.start; var reds=[], yellows=[]; state.specials.forEach(function(t,k){ var ab=k.split(',').map(Number); if(t==='red') reds.push({r:ab[0],c:ab[1]}); else if(t==='orange') yellows.push({r:ab[0],c:ab[1]}); });
+    function bannedAdj(p){ if(HOLE_EXCL.indexOf('start')>=0 && adj1(p,start)) return true; if(HOLE_EXCL.indexOf('red')>=0){ for(var i=0;i<reds.length;i++){ if(adj1(p,reds[i])) return true; } } if(HOLE_EXCL.indexOf('yellow')>=0){ for(var j=0;j<yellows.length;j++){ if(adj1(p,yellows[j])) return true; } } return false; }
+    var candidates=[]; for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){ var p={r:r,c:c}; var k=keyOf(p); if(k===keyOf(start)) continue; if(state.specials.has(k)) continue; if(bannedAdj(p)) continue; candidates.push(p); }
+    shuffle(candidates);
+    var chosen=[]; var tries=0; function okDist(p,arr,min){ for(var i=0;i<arr.length;i++){ if(manhattan(p,arr[i])<min) return false; } return true; }
+    while(chosen.length<need && tries<HOLE_MAXTRIES && candidates.length){ var p=candidates.shift(); tries++; if(okDist(p,chosen,HOLE_MINGAP)){ chosen.push(p); } }
+    // 若不足逐步放寬
+    var relax=[HOLE_MINGAP-1, HOLE_MINGAP-2, 1];
+    for(var ri=0; ri<relax.length && chosen.length<need; ri++){
+      var min=relax[ri]; for(var k=0;k<candidates.length && chosen.length<need;k++){ var q=candidates[k]; if(okDist(q,chosen,min)) chosen.push(q); }
+    }
+    for(var i=0;i<chosen.length;i++){ state.removed.add(keyOf(chosen[i])); }
+  }
+
+  // ===== 初始化 / 重置 =====
+  function compactStatus(){ if(statusEl){ statusEl.textContent = '紅點:'+(state.redVisited?state.redVisited.size:0)+'/'+(state.redTotal||0)+(state.gameOver && state.redVisited.size>=state.redTotal? ' 成功通關':'' ); } }
+
+  function reset(){
+    // 每次重設都根據關卡設定恢復迷霧
+    FOG_ENABLED = (cfg.fog && cfg.fog.enabled !== undefined) ? cfg.fog.enabled : true;
+    setFogEnabled(FOG_ENABLED);
+    // 停怪/清MASK
+    if(state.monsters && state.monsters.length){ state.monsters.forEach(function(m){ if(m.timer) clearInterval(m.timer); }); }
+    state.monsters=[]; if(monstersG) monstersG.innerHTML=''; if(state.extraMonsterTimer){ clearTimeout(state.extraMonsterTimer); state.extraMonsterTimer=null; }
+    (function(){ var mg=document.getElementById('maskGroup'); if(mg){ var ls=mg.querySelectorAll('[id^="maskMonster-"],[id^="maskVisited-"]'); ls.forEach(function(n){ if(n&&n.parentNode) n.parentNode.removeChild(n); }); } })();
+
+    state.player={r:Math.floor(NR/2),c:Math.floor(NC/2)}; state.start={r:state.player.r,c:state.player.c};
+    state.bridges=new Set(); state.specials=new Map(); state.specialGaps=new Map(); state.blueUsed=new Set(); state.redVisited=new Set(); state.redTotal=RED_TARGET; state.orangeKey=null; state.orangeVisited=false; state.removed=new Set(); state.gameOver=false; state.bridgesLeft=BRIDGE_START; state.moving=false; state.moveToken=0; state.bridgesBuilt=0; state.visitedOthers=new Set();
+
+    setFogEnabled(FOG_ENABLED);
+
+    // 起點：綠，gap 依混合
+    state.specials.set(keyOf(state.start),'green'); state.specialGaps.set(keyOf(state.start), otherGap());
+
+    placeRedsAndYellow();
+    fillExtrasSpecials();
+    colorizeBlueGreen();
+    placeHolesByConfig();
+
+    drawGrid(); drawBridges(); drawNodes(); drawPlayer(); highlightNeighbors(); compactStatus();
+
+    selfTest();
+  }
+
+  // ===== 自測 =====
+  function selfTest(){
+    try{
+      console.assert(state.redVisited instanceof Set, '[自測] redVisited 應為 Set');
+      var reds=0, oranges=0; state.specials.forEach(function(t){ if(t==='red') reds++; else if(t==='orange') oranges++; });
+      console.assert(reds===state.redTotal, '[自測] 紅點數量='+state.redTotal+', 現有='+reds);
+      console.assert(oranges===1, '[自測] 黃(橘)點數量應為 1');
+      console.assert(Object.getPrototypeOf(moveAlongPath).constructor.name==='AsyncFunction', '[自測] moveAlongPath 應為 async');
+      (function(){ var arr=[]; state.specials.forEach(function(t,k){ var ab=k.split(',').map(Number); var g=state.specialGaps.get(k); arr.push({r:ab[0],c:ab[1],g:g,type:t}); }); for(var i=0;i<arr.length;i++) for(var j=i+1;j<arr.length;j++){ var d=Math.abs(arr[i].r-arr[j].r)+Math.abs(arr[i].c-arr[j].c); var need=Math.max(arr[i].g,arr[j].g); console.assert(d>=need,'[自測] 大點距離檢查失敗 d='+d+' need='+need); } })();
+    }catch(e){ console.warn('自測錯誤：',e); }
+  }
+
+  // ===== 事件 =====
+  window.addEventListener('keydown', onKeyDown);
+  if(stageEl){ stageEl.addEventListener('touchstart', onTouchStart, {passive:true}); stageEl.addEventListener('touchmove', onTouchMove, {passive:false}); stageEl.addEventListener('touchend', onTouchEnd, {passive:true}); }
+  if(startBtn){ startBtn.addEventListener('click', function(){ reset(); }); }
+
+  // ===== 啟動 =====
+  loadConfigAndInit();
+})();
+</script>
+</body>
+</html>

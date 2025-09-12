@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>關卡選擇</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121821; --card:#0f172a; --card-bd:#1f2a3a; --card-bd-hover:#2b3b53;
+      --text:#e5e7eb; --muted:#93a3b8; --accent:#2563eb; --accent2:#22c55e;
+      --safe-top: env(safe-area-inset-top, 0px);
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Helvetica,Arial}
+    .page{min-height:100dvh;display:flex;flex-direction:column}
+
+    /* Header */
+    .hdr{position:sticky;top:0;padding:10px 14px calc(8px + var(--safe-top));background:linear-gradient(180deg,rgba(11,15,20,.96),rgba(11,15,20,.82));backdrop-filter:blur(6px);z-index:2}
+    .hdr-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+    .title{font-size:18px;font-weight:800;margin:6px 2px}
+    .sub{font-size:12px;color:var(--muted)}
+
+    /* Content */
+    .content{flex:1;display:flex;flex-direction:column;gap:14px;padding:14px;max-width:1100px;margin:0 auto;width:100%}
+    .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+    .card{background:var(--card);border:1px solid var(--card-bd);border-radius:14px;padding:12px;cursor:pointer;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}
+    .card:hover{transform:translateY(-2px);border-color:var(--card-bd-hover);box-shadow:0 8px 20px rgba(0,0,0,.25)}
+    .card .t{font-weight:800;margin-bottom:6px}
+    .card .d{font-size:12px;color:var(--muted)}
+
+    .cta-wrap{display:flex;justify-content:center;margin-top:6px; flex-wrap:wrap; white-space:normal; overflow-x:visible;}
+    .cta{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#fff;padding:10px 18px;border-radius:999px;font-weight:800;letter-spacing:.5px;cursor:pointer}
+
+    .footnote{ text-align:center;font-size:12px;color:var(--muted);opacity:.85; margin-top:6px }
+
+    /* Toast */
+    .toast{ position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#111827; color:#e5e7eb; padding:8px 12px; border-radius:999px; border:1px solid #1f2937; opacity:0; transition:opacity .2s ease; z-index:3; pointer-events:none }
+
+    /* Panel demo (fake preview frame) */
+    .preview{ background:var(--panel); border-radius:16px; padding:16px; border:1px solid #0f172a; box-shadow:inset 0 0 0 1px #0f172a, 0 10px 30px rgba(0,0,0,.25) }
+    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; white-space:normal; overflow-x:visible; }
+    .btn{background:#1f2937;color:#e5e7eb;border:1px solid #374151;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
+    .badge{display:flex;align-items:center;background:#0f172a;border:1px solid #172036;border-radius:999px;padding:0 10px;font-size:12px;color:#94a3b8;height:32px;line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    @media (max-width:640px){
+      .title{font-size:16px}
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hdr">
+      <div class="hdr-row">
+        <div>
+          <div class="title">迷霧之境</div>
+          <div class="sub">選擇你要挑戰的關卡</div>
+        </div>
+        <div class="row">
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="grid" id="levelGrid">
+        <div class="card" data-level="level1" data-title="第一關：入門">
+          <div class="t">第一關：新手</div>
+          <div class="d">11×7｜新手友善</div>
+        </div>
+        <div class="card" data-level="level2" data-title="第二關：追擊">
+          <div class="t">第二關：迷霧</div>
+          <div class="d">11×7｜迷霧模式</div>
+        </div>
+        <div class="card" data-level="level3" data-title="第三關：建橋">
+          <div class="t">第三關：怪物</div>
+          <div class="d">15×9｜大量怪物</div>
+        </div>
+        <div class="card" data-level="level4" data-title="第四關：稀疏">
+          <div class="t">第四關：天坑</div>
+          <div class="d">15×9｜大量空洞</div>
+        </div>
+        <div class="card" data-level="level5" data-title="第五關：迷霧">
+          <div class="t">第五關：荒地</div>
+          <div class="d">17×11｜密度降低</div>
+        </div>
+        <div class="card" data-level="level6" data-title="第六關：資源稀缺">
+          <div class="t">第六關：七鑰</div>
+          <div class="d">17×11｜七把鑰匙</div>
+        </div>
+      </section>
+
+      <section class="cta-wrap">
+        <button id="freeBtn" class="cta">自由模式</button>
+      </section>
+
+
+
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    (function(){
+      'use strict';
+      var toastEl = document.getElementById('toast');
+      function toast(msg){
+        if(!toastEl) return;
+        toastEl.textContent = msg || '';
+        toastEl.style.opacity = 1;
+        clearTimeout(toastEl._to);
+        toastEl._to = setTimeout(function(){ toastEl.style.opacity = 0; }, 1400);
+      }
+      var grid = document.getElementById('levelGrid');
+      if(grid){
+        grid.addEventListener('click', function(e){
+          var card = e.target.closest('.card');
+          if(!card) return;
+          var level = card.getAttribute('data-level');
+          if(level){
+            window.location.href = 'play.html?level=' + encodeURIComponent(level);
+          }
+        });
+      }
+      var freeBtn = document.getElementById('freeBtn');
+      if(freeBtn){
+        freeBtn.addEventListener('click', function(){
+          window.location.href = 'free.html';
+        });
+      }
+
+    })();
+  </script>
+</body>
+</html>

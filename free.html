@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>動態點陣橋樑遊戲 Demo</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121821; --grid:#203044; --node:#e5e7eb; --node-hover:#fff;
+      --bridge:#6ee7b7; --bridge-new:#93c5fd; --player:#f59e0b; --neighbor:#34d399;
+      --green:#22c55e; --blue:#3b82f6; --red:#ef4444; --orange:#facc15; --monster:#a855f7; --warn:#ef4444; --text:#d1d5db; --muted:#9ca3af;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --topbar-h: 50px; /* toolbar(38) + padding(6+6) */
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Helvetica,Arial}
+    .wrap{position:relative;display:grid;grid-template-columns:200px 1fr;gap:8px;height:100dvh;padding:6px;box-sizing:border-box}
+
+    .panel{background:var(--panel);border-radius:16px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
+    .panel h1{font-size:14px;margin:0 0 2px;opacity:.85}
+
+    .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;overflow-x:visible;white-space:normal;}
+    .btn{background:#1f2937;color:#e5e7eb;border:1px solid #374151;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600;width:88px;flex:0 0 88px;text-align:center}
+.inp{width:40px;padding:4px 6px;border-radius:8px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    .lab{display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8}
+    .badge{display:flex;align-items:center;background:#0f172a;border:1px solid #172036;border-radius:999px;padding:0 10px;font-size:12px;color:#94a3b8;height:32px;line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto}
+
+    .stage{background:var(--panel);border-radius:16px;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px #0f172a,0 10px 30px rgba(0,0,0,.25);width:auto;height:100%;max-width:100%;justify-self:center;touch-action:none}
+    .stage>svg{position:absolute;inset:0;width:100%;height:100%}
+
+    .grid-line{stroke:var(--grid);stroke-width:1}
+    .bridge{stroke:var(--bridge);stroke-width:4;stroke-linecap:round;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}
+    .bridge.new{stroke:var(--bridge-new)}
+
+    .node{cursor:pointer;transition:r .12s ease;fill:var(--node)}
+    .node:hover{r:13;fill:var(--node-hover)}
+    .node.neighbor{stroke:var(--neighbor);stroke-width:2}
+    .node.blocked{stroke:var(--warn);stroke-width:2}
+
+    .node.green{fill:var(--green);stroke:#064e3b;stroke-width:2}
+    .node.green:hover{r:21}
+    .node.blue{fill:var(--blue);stroke:#1e40af;stroke-width:2}
+    .node.blue.used{fill:none;stroke:var(--blue);stroke-width:3;pointer-events:all}
+    .node.red{fill:var(--red);stroke:#7f1d1d;stroke-width:2}
+    .node.orange{fill:var(--orange);stroke:#7c2d12;stroke-width:2}
+    .ring{pointer-events:none}
+    .red-ring{fill:none;stroke:var(--red);stroke-width:4;opacity:.9}
+
+    .player{fill:var(--player);stroke:#0008;stroke-width:1.5;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+    .player-text{font: 700 14px/1 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto; fill:#111; text-anchor:middle; dominant-baseline:central; pointer-events:none}
+    .player-group{ transition: transform .32s ease-out; will-change: transform; }
+
+    .monster{ fill: var(--monster); stroke:#0008; stroke-width:1.5; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+    .monster-group{ transition: transform .7s ease-out; will-change: transform; }
+
+    @media (max-width:920px){
+      .wrap{grid-template-columns:1fr; padding:0; gap:0; height:100dvh}
+      .panel{position:absolute; top:var(--safe-top); left:var(--safe-left); z-index:3; background:rgba(18,24,33,.85); backdrop-filter: blur(6px); padding:6px 8px; border-radius:10px}
+      .panel h1{display:none}
+      .toolbar{
+        height:38px;
+        flex-wrap:nowrap !important;
+        overflow-x:auto !important;
+        white-space:nowrap !important;
+      }
+      .btn{width:84px;flex-basis:84px}
+      .stage{border-radius:0; height:calc(100dvh - var(--safe-top) - var(--topbar-h)); width:auto; max-width:100%; margin:calc(var(--safe-top) + var(--topbar-h)) auto 0}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1>點陣橋樑遊戲（Demo）</h1>
+      <div class="toolbar">
+        <button class="btn" id="startBtn">開始</button>
+        <label class="lab">高 <input id="nrInput" type="number" min="7" max="25" value="15" class="inp"></label>
+        <label class="lab">寬 <input id="ncInput" type="number" min="7" max="25" value="9" class="inp"></label>
+        <label class="lab">P(半徑4比例) <input id="pInput" type="number" min="0" max="1" step="0.05" value="0.50" class="inp"></label>
+        <div class="badge" id="status">紅點:0/4</div>
+        <button class="btn" id="homeBtn">首頁</button>
+      </div>
+    </section>
+    <section class="stage">
+      <svg id="svg" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+            <feGaussianBlur stdDeviation="15"/>
+          </filter>
+          <mask id="viewMask">
+            <rect id="maskBG" x="0" y="0" width="1000" height="1000" fill="black"/>
+            <g id="maskGroup" filter="url(#softBlur)">
+              <circle id="maskPlayer" cx="0" cy="0" r="0" fill="white"/>
+            </g>
+          </mask>
+        </defs>
+        <g id="viewport" mask="url(#viewMask)">
+          <g id="grid"></g>
+          <g id="bridges"></g>
+          <g id="nodes"></g>
+          <g id="monstersLayer"></g>
+          <g id="playerLayer"></g>
+        </g>
+      </svg>
+    </section>
+  </div>
+
+<script>
+(function(){
+  'use strict';
+  // ===== Constants & DOM =====
+  var NR=15, NC=9, PAD=24,
+      SVG_W=1000, SVG_H=1000,
+      STEP, GRID_W, GRID_H, PADX, PADY;
+  var P_MIX = 0.50; // 其他大點（非紅/黃）使用半徑4的比例
+
+  var svgEl=document.getElementById('svg');
+  var stageEl=document.querySelector('.stage');
+  function computeGeometry(){
+    var BASE=1000; // 內部座標基準寬度
+    SVG_W = BASE;
+    SVG_H = Math.round(BASE * NR / NC); // 與 NC:NR 同比，避免內部留白
+    if(svgEl) svgEl.setAttribute('viewBox', '0 0 '+SVG_W+' '+SVG_H);
+    STEP = Math.min((SVG_W-2*PAD)/(NC-1), (SVG_H-2*PAD)/(NR-1));
+    GRID_W = (NC-1)*STEP; GRID_H = (NR-1)*STEP;
+    PADX = (SVG_W - GRID_W)/2; PADY = (SVG_H - GRID_H)/2; // 期望等於 PAD
+    if(stageEl) stageEl.style.aspectRatio = NC + ' / ' + NR;
+    var maskBG=document.getElementById('maskBG');
+    if(maskBG){ maskBG.setAttribute('x', -64); maskBG.setAttribute('y', -64); maskBG.setAttribute('width', SVG_W+128); maskBG.setAttribute('height', SVG_H+128); }
+  }
+  function layoutStage(){
+    if(!stageEl) return;
+    var isMobile = window.matchMedia('(max-width:920px)').matches;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var ratio = NC/NR;
+    var safeTop=0, topbarH=50;
+    try{ var cs=getComputedStyle(document.documentElement); var st=parseFloat(cs.getPropertyValue('--safe-top'))||0; safeTop=st; }catch(e){}
+    var availW = isMobile ? vw : stageEl.parentElement.clientWidth;
+    var availH = isMobile ? (vh - safeTop - topbarH) : stageEl.parentElement.clientHeight;
+    if(availW<=0||availH<=0){ availW=vw; availH=vh; }
+    var w=availW, h=w/ratio; if(h>availH){ h=availH; w=h*ratio; }
+    stageEl.style.width = Math.floor(w)+"px";
+    stageEl.style.height= Math.floor(h)+"px";
+    stageEl.style.marginTop = isMobile ? (safeTop+topbarH)+"px" : "0px";
+  }
+  computeGeometry();
+  setTimeout(layoutStage,0);
+  window.addEventListener('resize', layoutStage);
+  var gridG=document.getElementById('grid');
+  var bridgesG=document.getElementById('bridges');
+  var nodesG=document.getElementById('nodes');
+  var monstersG=document.getElementById('monstersLayer');
+  var playerG=document.getElementById('playerLayer');
+  
+var startBtn=document.getElementById('startBtn');
+var nrInput=document.getElementById('nrInput');
+var ncInput=document.getElementById('ncInput');
+var pInput=document.getElementById('pInput');
+var statusEl=document.getElementById('status');
+var homeBtn=document.getElementById('homeBtn');
+if(homeBtn){
+  homeBtn.addEventListener('click', function(){
+    window.location.href = 'index.html';
+  });
+}
+  
+  var RED_TARGET = 4;        // 四象限 4 顆紅點
+  var MONSTER_STEP_MS=750;   // 怪物稍慢
+
+  var state={
+    player:{r:Math.floor(NR/2),c:Math.floor(NC/2)},
+    start:{r:Math.floor(NR/2),c:Math.floor(NC/2)},
+    bridges:new Set(),
+    specials:new Map(),       // key -> 'green'|'blue'|'red'|'orange'
+    specialGaps:new Map(),    // key -> gap(3/4)
+    blueUsed:new Set(),
+    redVisited:new Set(),
+    redTotal: RED_TARGET,
+    orangeKey:null,
+    orangeVisited:false,
+    removed:new Set(),
+    monsters:[],
+    moving:false,
+    moveToken:0,
+    bridgesLeft:10,
+    gameOver:false,
+    bridgesBuilt:0,
+    extraMonsterTimer:null,
+    animatingBridge:false,
+    buildingEdges:new Set(),
+    maskPos:null,
+    maskAnimToken:0
+  };
+
+  // ===== Helpers =====
+  function pos(r,c){ return {x: PADX + c*STEP, y: PADY + r*STEP}; }
+  function inBounds(r,c){ return r>=0 && r<NR && c>=0 && c<NC; }
+  function keyOf(p){ return p.r+","+p.c; }
+  function manhattan(a,b){ return Math.abs(a.r-b.r)+Math.abs(a.c-b.c); }
+  function isNeighbor(a,b){ return manhattan(a,b)===1; }
+  function edgeKey(a,b){ var k1=keyOf(a), k2=keyOf(b); return (k1<k2)?(k1+"|"+k2):(k2+"|"+k1); }
+  function hasBridge(a,b){ return state.bridges.has(edgeKey(a,b)); }
+  function isBig(r,c){ return state.specials.has(r+","+c); }
+  function degreeAt(p){ var d=0; state.bridges.forEach(function(e){ var ab=e.split('|'); if(ab[0]===keyOf(p)||ab[1]===keyOf(p)) d++; }); return d; }
+  function clamp(n,min,max){ n=parseFloat(n); if(isNaN(n)) return min; return Math.max(min, Math.min(max, n)); }
+
+  // ===== Draw =====
+  function drawGrid(){
+    gridG.innerHTML='';
+    for(var i=0;i<NR;i++){
+      var y=PADY + i*STEP; var h=document.createElementNS('http://www.w3.org/2000/svg','line');
+      h.setAttribute('x1',PADX); h.setAttribute('y1',y); h.setAttribute('x2',SVG_W-PADX); h.setAttribute('y2',y); h.setAttribute('class','grid-line'); gridG.appendChild(h);
+    }
+    for(var j=0;j<NC;j++){
+      var x=PADX + j*STEP; var v=document.createElementNS('http://www.w3.org/2000/svg','line');
+      v.setAttribute('x1',x); v.setAttribute('y1',PADY); v.setAttribute('x2',x); v.setAttribute('y2',SVG_H-PADY); v.setAttribute('class','grid-line'); gridG.appendChild(v);
+    }
+  }
+
+  function drawNodes(){
+    nodesG.innerHTML='';
+    for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){
+      var k=r+","+c; if(state.removed.has(k)) continue; // 被移除
+      var p=pos(r,c), t=state.specials.get(k);
+      if(t==='red' && state.redVisited.has(k)){
+        var ring=document.createElementNS('http://www.w3.org/2000/svg','circle');
+        ring.setAttribute('cx',p.x); ring.setAttribute('cy',p.y); ring.setAttribute('r',22); ring.setAttribute('class','ring red-ring'); nodesG.appendChild(ring);
+      }
+      var dot=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx',p.x); dot.setAttribute('cy',p.y);
+      dot.setAttribute('r', t? 19 : 12);
+      var cls='node';
+      if(t==='green') cls+=' green'; else if(t==='blue') cls+=' blue'+(state.blueUsed.has(k)?' used':''); else if(t==='red') cls+=' red'; else if(t==='orange') cls+=' orange';
+      dot.setAttribute('class',cls);
+      if(t==='blue' && state.blueUsed.has(k)){ dot.setAttribute('fill','none'); dot.setAttribute('pointer-events','all'); }
+      dot.dataset.r=r; dot.dataset.c=c; dot.addEventListener('click', onNodeClick);
+      nodesG.appendChild(dot);
+    }
+    highlightNeighbors();
+  }
+
+  function drawBridges(){
+    bridgesG.innerHTML='';
+    state.bridges.forEach(function(e){
+      var ab=e.split('|'); var a=ab[0].split(',').map(Number); var b=ab[1].split(',').map(Number);
+      var pa=pos(a[0],a[1]), pb=pos(b[0],b[1]);
+      var line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',pa.x); line.setAttribute('y1',pa.y); line.setAttribute('x2',pb.x); line.setAttribute('y2',pb.y);
+      line.setAttribute('class','bridge');
+      bridgesG.appendChild(line);
+    });
+  }
+
+  function drawPlayer(){
+    var group=playerG.querySelector('#pawnGroup');
+    if(!group){
+      group=document.createElementNS('http://www.w3.org/2000/svg','g'); group.setAttribute('id','pawnGroup'); group.setAttribute('class','player-group');
+      var pawn=document.createElementNS('http://www.w3.org/2000/svg','circle'); pawn.setAttribute('id','pawn'); pawn.setAttribute('r',14); pawn.setAttribute('class','player');
+      var txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('id','pawnText'); txt.setAttribute('class','player-text');
+      group.appendChild(pawn); group.appendChild(txt); playerG.appendChild(group);
+    }
+    var p=pos(state.player.r,state.player.c); group.style.transform='translate3d('+p.x+'px,'+p.y+'px,0)';
+    var t=playerG.querySelector('#pawnText'); if(t) t.textContent=state.bridgesLeft;
+    updateViewMask();
+  }
+
+  function drawMonster(m){
+    var g=document.getElementById('monster-'+m.id); var p=pos(m.pos.r,m.pos.c);
+    if(!g){ g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('id','monster-'+m.id); g.setAttribute('class','monster-group'); var body=document.createElementNS('http://www.w3.org/2000/svg','circle'); body.setAttribute('r',12); body.setAttribute('class','monster'); g.appendChild(body); monstersG.appendChild(g); }
+    g.style.transform='translate3d('+p.x+'px,'+p.y+'px,0)';
+  }
+
+  // ===== Animation =====
+  function animateMonsterFogFollow(m, pFrom, pTo, duration){
+    var id='maskMonster-'+m.id;
+    var c=document.getElementById(id);
+    if(!c){
+      var group=document.getElementById('maskGroup');
+      if(!group) return;
+      c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('id', id);
+      c.setAttribute('fill','white');
+      c.setAttribute('cx', pFrom.x);
+      c.setAttribute('cy', pFrom.y);
+      c.setAttribute('r', STEP*0.8);
+      group.appendChild(c);
+    }
+    var token=(m.maskToken||0)+1; m.maskToken=token;
+    var t0=performance.now();
+    function step(now){
+      if(m.maskToken!==token) return; // canceled by newer move
+      var t=(now-t0)/duration; if(t>=1){ c.setAttribute('cx', pTo.x); c.setAttribute('cy', pTo.y); return; }
+      if(t<0) t=0; if(t>1) t=1; var e=1-Math.pow(1-t,3);
+      var x=pFrom.x+(pTo.x-pFrom.x)*e; var y=pFrom.y+(pTo.y-pFrom.y)*e;
+      c.setAttribute('cx', x); c.setAttribute('cy', y);
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  function animateBridgeGrow(a,b,done){
+    var pa=pos(a.r,a.c), pb=pos(b.r,b.c);
+    var line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',pa.x); line.setAttribute('y1',pa.y); line.setAttribute('x2',pa.x); line.setAttribute('y2',pa.y); line.setAttribute('class','bridge new'); bridgesG.appendChild(line);
+    var dur=280, t0=performance.now();
+    function step(now){ var t=Math.min(1,(now-t0)/dur); var x=pa.x+(pb.x-pa.x)*t, y=pa.y+(pb.y-pa.y)*t; line.setAttribute('x2',x); line.setAttribute('y2',y); if(t<1) requestAnimationFrame(step); else { setTimeout(function(){ line.classList.remove('new'); },200); if(done) done(); } }
+    requestAnimationFrame(step);
+  }
+
+  function waitTransition(){
+    var g=playerG.querySelector('#pawnGroup'); if(!g) return Promise.resolve();
+    return new Promise(function(res){ var done=false; var to=setTimeout(function(){ if(!done){done=true; res();}},650); g.addEventListener('transitionend', function(){ if(!done){done=true; clearTimeout(to); res(); } }, {once:true}); });
+  }
+
+  async function moveAlongPath(path){
+    if(!path||path.length<2) return;
+    state.moving=true;
+    var token=++state.moveToken;
+    for(var i=1;i<path.length;i++){
+      if(token!==state.moveToken) break;
+      var from={r:path[i-1].r,c:path[i-1].c};
+      var to  ={r:path[i].r,  c:path[i].c  };
+      var pFrom=pos(from.r,from.c), pTo=pos(to.r,to.c);
+      state.player={r:to.r,c:to.c};
+      drawPlayer();
+      // 迷霧跟隨補間（每一步都補一次）
+      (function(localToken){
+        var c=document.getElementById('maskPlayer');
+        state.maskPos={x:pFrom.x,y:pFrom.y};
+        var t0=performance.now(), dur=320;
+        function step(now){
+          if(localToken!==state.moveToken) { state.maskPos=null; return; }
+          var t=(now-t0)/dur;
+          if(t>=1){
+            state.maskPos=null;
+            if(c){ c.setAttribute('cx',pTo.x); c.setAttribute('cy',pTo.y); }
+            updateViewMask();
+            return;
+          }
+          var e=1-Math.pow(1-Math.max(0,Math.min(1,t)),3);
+          var x=pFrom.x+(pTo.x-pFrom.x)*e;
+          var y=pFrom.y+(pTo.y-pFrom.y)*e;
+          if(c){ c.setAttribute('cx',x); c.setAttribute('cy',y); }
+          requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      })(token);
+      triggerSpecial(state.player);
+      if(checkCollision()){ state.moving=false; return; }
+      await waitTransition();
+    }
+    state.moving=false;
+    highlightNeighbors();
+  }
+
+  // ===== Pathfinding =====
+  function neighbors4(p){ var arr=[{r:p.r-1,c:p.c},{r:p.r+1,c:p.c},{r:p.r,c:p.c-1},{r:p.r,c:p.c+1}]; return arr.filter(function(q){ return inBounds(q.r,q.c); }); }
+  function neighborsViaBridges(p){ return neighbors4(p).filter(function(nb){ return hasBridge(p,nb); }); }
+  function bfsPath(start,goal){
+    var q=[start], seen=new Set([keyOf(start)]), prev=new Map();
+    while(q.length){ var cur=q.shift(); if(cur.r===goal.r && cur.c===goal.c) break; neighborsViaBridges(cur).forEach(function(nb){ var k=keyOf(nb); if(seen.has(k)) return; seen.add(k); prev.set(k,cur); q.push(nb); }); }
+    var gk=keyOf(goal); if(!prev.has(gk)){ if(hasBridge(start,goal)) return [start,goal]; return null; }
+    var path=[goal], curk=gk; while(!(path[0].r===start.r && path[0].c===start.c)){ var p=prev.get(curk); if(!p) return null; path.unshift(p); curk=keyOf(p);} return path;
+  }
+
+  // ===== Monsters =====
+  function stepMonster(m){
+    if(state.gameOver) return;
+    var cur=m.pos; var options=neighborsViaBridges(cur);
+    if(m.prev) options=options.filter(function(nb){ return !(nb.r===m.prev.r && nb.c===m.prev.c); });
+    var next=null;
+    if(options.length>0){ next=options[Math.floor(Math.random()*options.length)]; m.prev={r:cur.r,c:cur.c}; }
+    else if(m.prev){ next={r:m.prev.r,c:m.prev.c}; m.prev={r:cur.r,c:cur.c}; }
+    else { return; }
+    var pFrom=pos(cur.r,cur.c); var pTo=pos(next.r,next.c);
+    m.pos={r:next.r,c:next.c};
+    drawMonster(m);
+    animateMonsterFogFollow(m, pFrom, pTo, MONSTER_STEP_MS);
+    updateViewMask();
+    checkCollision();
+  }
+  function spawnMonster(){ var id=Date.now().toString(36)+Math.random().toString(36).slice(2,7); var m={ id:id, pos:{r:state.start.r,c:state.start.c}, prev:null, timer:null }; state.monsters.push(m); drawMonster(m); updateViewMask(); m.timer=setInterval(function(){ stepMonster(m); }, MONSTER_STEP_MS); }
+function checkCollision(){
+  if(state.gameOver) return true;
+  for(var i=0;i<state.monsters.length;i++){
+    var m=state.monsters[i];
+    if(m.pos.r===state.player.r && m.pos.c===state.player.c){
+      state.gameOver=true;
+      setFogEnabled(false);
+      if(statusEl) statusEl.textContent = '遊戲失敗';
+      state.monsters.forEach(function(mm){ if(mm.timer) clearInterval(mm.timer); });
+      return true;
+    }
+  }
+  return false;
+}
+
+  // ===== Game Logic =====
+  function canBuildBridge(a,b){ var ek=edgeKey(a,b); if(hasBridge(a,b)) return false; if(state.buildingEdges && state.buildingEdges.has(ek)) return false; if(state.bridgesLeft<=0) return false; var aBig=isBig(a.r,a.c), bBig=isBig(b.r,b.c); var nextA=degreeAt(a)+1, nextB=degreeAt(b)+1; if(!aBig && nextA>2) return false; if(!bBig && nextB>2) return false; return true; }
+
+  function addBridge(a,b, moveAfter){ var eKey=edgeKey(a,b); if(!canBuildBridge(a,b)) { return; } state.buildingEdges.add(eKey); state.animatingBridge=true; animateBridgeGrow(a,b,function(){ if(!state.bridges.has(eKey)){ state.bridges.add(eKey); state.bridgesLeft=Math.max(0,state.bridgesLeft-1); } drawBridges(); drawPlayer(); state.bridgesBuilt++; if(state.bridgesBuilt===2 && !state.extraMonsterTimer){ state.extraMonsterTimer=setTimeout(function(){ if(!state.gameOver) spawnMonster(); state.extraMonsterTimer=null; }, 3000);} state.buildingEdges.delete(eKey); state.animatingBridge=false; if(moveAfter) movePlayer(b); }); }
+
+  function movePlayer(to){
+    if(state.gameOver) return;
+    var from={r:state.player.r,c:state.player.c};
+    var pFrom=pos(from.r,from.c), pTo=pos(to.r,to.c);
+    state.player={r:to.r,c:to.c};
+    drawPlayer();
+    // 迷霧跟隨補間
+    (function(){
+      var c=document.getElementById('maskPlayer');
+      state.maskPos={x:pFrom.x,y:pFrom.y};
+      var t0=performance.now(), dur=320;
+      function step(now){
+        var t=(now-t0)/dur;
+        if(t>=1){
+          state.maskPos=null;
+          if(c){ c.setAttribute('cx',pTo.x); c.setAttribute('cy',pTo.y); }
+          updateViewMask();
+          return;
+        }
+        var e=1-Math.pow(1-Math.max(0,Math.min(1,t)),3);
+        var x=pFrom.x+(pTo.x-pFrom.x)*e;
+        var y=pFrom.y+(pTo.y-pFrom.y)*e;
+        if(c){ c.setAttribute('cx',x); c.setAttribute('cy',y); }
+        requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    })();
+
+    triggerSpecial(state.player);
+    if(checkCollision()) return;
+    highlightNeighbors();
+  }
+
+  function triggerSpecial(p){
+  var k=keyOf(p);
+  var t=state.specials.get(k);
+  if(t==='green'){
+    if(state.bridgesLeft<5){ state.bridgesLeft=5; drawPlayer(); }
+  } else if(t==='blue'){
+    if(!state.blueUsed.has(k)){
+      state.blueUsed.add(k);
+      state.bridgesLeft+=4;
+      drawPlayer();
+      drawNodes();
+    }
+  } else if(t==='red'){
+    if(!state.redVisited.has(k)){
+      state.redVisited.add(k);
+      state.bridgesLeft+=5;
+      drawPlayer();
+      drawNodes();
+      spawnMonster();
+      updateViewMask();
+      // 更新紅點數
+      if(statusEl) statusEl.textContent = '紅點:' + state.redVisited.size + '/4';
+    }
+  } else if(t==='orange'){
+    var first=!state.orangeVisited;
+    if(first){
+      state.orangeVisited=true;
+      state.bridgesLeft+=3;
+      drawPlayer();
+    } else {
+      state.orangeVisited=true;
+    }
+    updateViewMask();
+    if(state.redVisited.size>=state.redTotal){
+      state.gameOver=true;
+      setFogEnabled(false);
+      // 顯示成功通關
+      if(statusEl) statusEl.textContent = '成功通關';
+    }
+  }
+}
+
+function onNodeClick(e){
+  if(state.gameOver) return;
+  if(state.animatingBridge) return;
+  var r=+e.currentTarget.dataset.r, c=+e.currentTarget.dataset.c;
+  var target={r:r,c:c};
+  var here=state.player;
+  if(state.moving){ state.moveToken++; state.moving=false; }
+  if(r===here.r && c===here.c) return;
+  if(isNeighbor(here,target)){
+    if(hasBridge(here,target)) {
+      movePlayer(target);
+    } else if (canBuildBridge(here,target)) {
+      addBridge(here,target,true);
+    } else {
+      var path=bfsPath(here,target);
+      if(path && path.length>1) {
+        moveAlongPath(path);
+      } else {
+        flashBlocked(e.currentTarget);
+      }
+    }
+    return;
+  }
+  var farPath=bfsPath(here,target);
+  if(farPath && farPath.length>1){
+    moveAlongPath(farPath);
+  } else {
+    flashBlocked(e.currentTarget);
+  }
+}
+
+  function flashBlocked(nodeEl){ nodeEl.classList.add('blocked'); setTimeout(function(){ nodeEl.classList.remove('blocked'); },300); }
+  function highlightNeighbors(){ nodesG.querySelectorAll('.node').forEach(function(n){ n.classList.remove('neighbor'); }); neighbors4(state.player).forEach(function(nb){ var el=nodesG.querySelector('.node[data-r="'+nb.r+'"][data-c="'+nb.c+'"]'); if(el) el.classList.add('neighbor'); }); }
+
+  // ===== Keyboard (Arrow keys) =====
+  var DIRS={ArrowUp:{r:-1,c:0}, ArrowDown:{r:1,c:0}, ArrowLeft:{r:0,c:-1}, ArrowRight:{r:0,c:1}};
+  function actByDirection(d){ if(!d) return; if(state.gameOver) return; if(state.animatingBridge) return;
+    var here=state.player;
+    var target={r:here.r+d.r, c:here.c+d.c};
+    if(!inBounds(target.r,target.c)) return;
+    if(state.removed.has(keyOf(target))) return; // 被移除的格不能走/建
+    if(state.moving){ state.moveToken++; state.moving=false; }
+    if(hasBridge(here,target)) { movePlayer(target); return; }
+    if(canBuildBridge(here,target)) { addBridge(here,target,true); return; }
+  }
+  function onKeyDown(e){ if(e.altKey||e.ctrlKey||e.metaKey) return; var d=DIRS[e.key]; if(!d) return; if(e.repeat){ e.preventDefault(); return; } if(state.animatingBridge){ e.preventDefault(); return; } e.preventDefault(); actByDirection(d); }
+
+  // ===== Touch Swipe (Mobile) =====
+  var _touchStart=null;
+  function onTouchStart(ev){ if(!ev.touches||ev.touches.length===0) return; var t=ev.touches[0]; _touchStart={x:t.clientX,y:t.clientY,time:performance.now()}; }
+  function onTouchMove(ev){ if(!_touchStart) return; var t=ev.touches&&ev.touches[0]; if(!t) return; var dx=t.clientX-_touchStart.x, dy=t.clientY-_touchStart.y; if(Math.abs(dx)>10||Math.abs(dy)>10){ ev.preventDefault(); } }
+  function onTouchEnd(ev){ if(!_touchStart) return; var t=ev.changedTouches&&ev.changedTouches[0]; if(!t){ _touchStart=null; return; } var dx=t.clientX-_touchStart.x, dy=t.clientY-_touchStart.y; var adx=Math.abs(dx), ady=Math.abs(dy); var min=24; if(adx<min && ady<min){ _touchStart=null; return; } if(adx>ady) actByDirection(dx>0?DIRS.ArrowRight:DIRS.ArrowLeft); else actByDirection(dy>0?DIRS.ArrowDown:DIRS.ArrowUp); _touchStart=null; }
+
+  // ===== Fog (mask) =====
+  function updateViewMask(){
+    var group=document.getElementById('maskGroup'); if(!group) return; // player circle
+    var base = state.maskPos ? state.maskPos : pos(state.player.r,state.player.c);
+    var playerCircle=document.getElementById('maskPlayer');
+    if(!playerCircle){ playerCircle=document.createElementNS('http://www.w3.org/2000/svg','circle'); playerCircle.setAttribute('id','maskPlayer'); playerCircle.setAttribute('fill','white'); group.appendChild(playerCircle); }
+    var playerR=STEP*1.8; playerCircle.setAttribute('cx',base.x); playerCircle.setAttribute('cy',base.y); playerCircle.setAttribute('r',playerR);
+
+    // 怪物遮罩：存在就只更新半徑；位置由動畫控制
+    var r08=STEP*0.8;
+    if(state.monsters && state.monsters.length){
+      for(var i=0;i<state.monsters.length;i++){
+        var m=state.monsters[i]; var id='maskMonster-'+m.id; var cm=document.getElementById(id);
+        if(!cm){ var mp=pos(m.pos.r,m.pos.c); cm=document.createElementNS('http://www.w3.org/2000/svg','circle'); cm.setAttribute('id',id); cm.setAttribute('fill','white'); cm.setAttribute('cx',mp.x); cm.setAttribute('cy',mp.y); cm.setAttribute('r',r08); group.appendChild(cm); }
+        else { cm.setAttribute('r', r08); }
+      }
+    }
+
+    // 重新繪製已造訪的大點視野洞（紅/黃）
+    var oldsV=group.querySelectorAll('[id^="maskVisited-"]'); oldsV.forEach(function(n){ if(n&&n.parentNode) n.parentNode.removeChild(n); });
+    if(state.redVisited && state.redVisited.size){
+      state.redVisited.forEach(function(k){ var rc=k.split(',').map(Number); var pp=pos(rc[0],rc[1]); var c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('id','maskVisited-red-'+k); c.setAttribute('fill','white'); c.setAttribute('cx',pp.x); c.setAttribute('cy',pp.y); c.setAttribute('r',r08); group.appendChild(c); });
+    }
+    if(state.orangeVisited && state.orangeKey){ var rc2=state.orangeKey.split(',').map(Number); var pp2=pos(rc2[0],rc2[1]); var c2=document.createElementNS('http://www.w3.org/2000/svg','circle'); c2.setAttribute('id','maskVisited-orange'); c2.setAttribute('fill','white'); c2.setAttribute('cx',pp2.x); c2.setAttribute('cy',pp2.y); c2.setAttribute('r',r08); group.appendChild(c2); }
+  }
+  function setFogEnabled(enabled){ var vp=document.getElementById('viewport'); if(!vp) return; if(enabled){ vp.setAttribute('mask','url(#viewMask)'); updateViewMask(); } else { vp.removeAttribute('mask'); } }
+
+  // ===== Specials placement =====
+  function shuffle(arr){ for(var i=arr.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=arr[i]; arr[i]=arr[j]; arr[j]=t; } return arr; }
+  function canPlaceWithGap(r,c,gap){ var ok=true; state.specials.forEach(function(_t, sk){ var ab=sk.split(',').map(Number); var d=Math.abs(ab[0]-r)+Math.abs(ab[1]-c); if(d < gap) ok=false; }); return ok; }
+  function otherGap(){ return Math.random() < P_MIX ? 4 : 3; }
+
+  // 紅與黃：對所有既有大點要求 gap=4
+  function placeRedsAndYellow(){
+    state.redTotal = RED_TARGET; // 4 顆
+    var sr = Math.floor(NR/2), sc = Math.floor(NC/2);
+    function qIndex(r,c){ return (r<sr?0:2) + (c<sc?0:1); }
+    function edgeDist(r,c){ return Math.min(r,c, NR-1-r, NC-1-c); }
+    var quads=[[],[],[],[]];
+    for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){
+      var k=r+","+c; if(k===keyOf(state.start)) continue; if(state.specials.has(k)) continue; quads[qIndex(r,c)].push({r:r,c:c});
+    }
+    for(var i=0;i<4;i++) shuffle(quads[i]);
+    // 每象限 1 顆紅點：距起點≥5 並且與所有已放大點距離≥4
+    for(var qi=0; qi<4; qi++){
+      var placed=false; var arr=quads[qi];
+      for(var i=0;i<arr.length;i++){
+        var p=arr[i]; var k=keyOf(p); if(manhattan(p, state.start) < 5) continue; if(!canPlaceWithGap(p.r,p.c,4)) continue; state.specials.set(k, 'red'); state.specialGaps.set(k,4); placed=true; break;
+      }
+      if(!placed){ // 後備：全盤找
+        var cells=[]; for(var rr=0;rr<NR;rr++) for(var cc=0;cc<NC;cc++){ var p2={r:rr,c:cc}; var k2=keyOf(p2); if(k2===keyOf(state.start)||state.specials.has(k2)) continue; cells.push(p2); }
+        shuffle(cells);
+        for(var j=0;j<cells.length;j++){ var p3=cells[j]; if(manhattan(p3,state.start)<5) continue; if(!canPlaceWithGap(p3.r,p3.c,4)) continue; state.specials.set(keyOf(p3),'red'); state.specialGaps.set(keyOf(p3),4); placed=true; break; }
+      }
+    }
+    // 黃色：優先外圍兩圈（edgeDist<=1），且距任何大點≥4
+    var ring=[]; for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){ if(edgeDist(r,c) <= 1){ var p={r:r,c:c}; var k=keyOf(p); if(k===keyOf(state.start)||state.specials.has(k)) continue; ring.push(p); } }
+    shuffle(ring);
+    for(var i=0;i<ring.length;i++){ var p=ring[i]; if(canPlaceWithGap(p.r,p.c,4)){ var ok=keyOf(p); state.specials.set(ok,'orange'); state.specialGaps.set(ok,4); state.orangeKey=ok; break; } }
+  }
+
+  // 其他大點（綠/藍）以混合半徑安插，對既有點採對稱規則：d >= max(gNew, gExisting)
+  function fillExtrasSpecials(){
+    // 組合已存在的大點（含起點）及其 gap：紅/黃=4；起點=混合；
+    var occ=[];
+    state.specials.forEach(function(t,k){ var ab=k.split(',').map(Number); var gap = state.specialGaps.get(k); if(typeof gap!=='number'){ gap = (t==='red'||t==='orange')?4:otherGap(); state.specialGaps.set(k,gap); } occ.push({r:ab[0],c:ab[1],gap:gap}); });
+
+    function okSpotWithGap(r,c,gNew){ for(var i=0;i<occ.length;i++){ var d=Math.abs(occ[i].r - r)+Math.abs(occ[i].c - c); var need=Math.max(gNew, occ[i].gap); if(d < need) return false; } return true; }
+
+    var cells=[]; for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){ var k= r+","+c; if(k!==keyOf(state.start) && !state.specials.has(k)) cells.push({r:r,c:c}); }
+    shuffle(cells);
+
+    for(var i=0;i<cells.length;i++){
+      var p=cells[i]; var gNew=otherGap();
+      if(!okSpotWithGap(p.r,p.c,gNew)) continue;
+      var k=keyOf(p);
+      state.specials.set(k,'green');
+      state.specialGaps.set(k,gNew);
+      occ.push({r:p.r,c:p.c,gap:gNew});
+    }
+  }
+
+  function colorizeBlueGreen(){
+    // 在「其餘大頂點」中，至少 55% 變藍；起點維持綠；紅/黃不動
+    var extras=[]; state.specials.forEach(function(t,k){ if(k!==keyOf(state.start) && (t==='green')) extras.push(k); });
+    var blueNeed=Math.ceil(extras.length*0.55); shuffle(extras); for(var i=0;i<extras.length;i++){ if(i<blueNeed) state.specials.set(extras[i],'blue'); else state.specials.set(extras[i],'green'); }
+  }
+
+  function placeHoles(count){
+    function adj1(a,b){ return Math.abs(a.r-b.r)+Math.abs(a.c-b.c)===1; }
+    var start=state.start; var ry=[]; state.specials.forEach(function(t,k){ if(t==='red'||t==='orange'){ var ab=k.split(',').map(Number); ry.push({r:ab[0],c:ab[1]}); } });
+    var candidates=[]; for(var r=0;r<NR;r++) for(var c=0;c<NC;c++){ var p={r:r,c:c}; var k=keyOf(p); if(k===keyOf(start)) continue; if(state.specials.has(k)) continue; if(adj1(p,start)) continue; var bad=false; for(var i=0;i<ry.length;i++){ if(adj1(p,ry[i])){ bad=true; break; } } if(bad) continue; candidates.push(p); }
+    shuffle(candidates);
+    function pick(minD, already){ var chosen=already?already.slice():[]; for(var i=0;i<candidates.length && chosen.length<count;i++){ var p=candidates[i]; var ok=true; for(var j=0;j<chosen.length;j++){ if(manhattan(p, chosen[j])<minD){ ok=false; break; } } if(ok) chosen.push(p); } return chosen; }
+    var chosen=pick(3,[]); if(chosen.length<count) chosen=pick(2,chosen); if(chosen.length<count) chosen=pick(1,chosen);
+    for(var i=0;i<chosen.length && i<count;i++){ state.removed.add(keyOf(chosen[i])); }
+  }
+
+  // ===== Reset / Init =====
+  
+  function reset(){
+    // stop monsters & timers
+    if(state.monsters && state.monsters.length){ state.monsters.forEach(function(m){ if(m.timer) clearInterval(m.timer); }); }
+    state.monsters=[]; if(monstersG) monstersG.innerHTML='';
+    if(state.extraMonsterTimer){ clearTimeout(state.extraMonsterTimer); state.extraMonsterTimer=null; }
+
+    // 清空舊的怪物與造訪洞的遮罩圓（避免 reset 後殘留）
+    (function(){ var mg=document.getElementById('maskGroup'); if(mg){ var ls=mg.querySelectorAll('[id^="maskMonster-"],[id^="maskVisited-"]'); ls.forEach(function(n){ if(n&&n.parentNode) n.parentNode.removeChild(n); }); } })();
+
+    state.player={r:Math.floor(NR/2),c:Math.floor(NC/2)}; state.start={r:state.player.r,c:state.player.c};
+    state.bridges=new Set(); state.specials=new Map(); state.specialGaps=new Map(); state.blueUsed=new Set(); state.redVisited=new Set(); state.redTotal=RED_TARGET; state.orangeKey=null; state.orangeVisited=false; state.removed=new Set(); state.gameOver=false; state.bridgesLeft=10; state.moving=false; state.moveToken=0; state.bridgesBuilt=0;
+
+    setFogEnabled(true);
+
+    // 起點：綠，gap 依混合規則
+    state.specials.set(keyOf(state.start),'green');
+    state.specialGaps.set(keyOf(state.start), otherGap());
+
+    placeRedsAndYellow();
+    fillExtrasSpecials();
+    colorizeBlueGreen();
+    placeHoles(Math.ceil(NR*NC*0.06));
+
+    drawGrid(); drawBridges(); drawNodes(); drawPlayer(); highlightNeighbors();
+
+    selfTest();
+  }
+
+  // ===== Minimal Self Tests =====
+  function selfTest(){
+    try{
+      console.assert(state.redVisited instanceof Set, '[自測] redVisited 應為 Set');
+      var reds=0, oranges=0; state.specials.forEach(function(t){ if(t==='red') reds++; else if(t==='orange') oranges++; });
+      console.assert(reds===state.redTotal, '[自測] 紅點數量應為 '+state.redTotal+', 目前='+reds);
+      console.assert(oranges===1, '[自測] 黃點數量應為 1, 目前='+oranges);
+      console.assert(Object.getPrototypeOf(moveAlongPath).constructor.name==='AsyncFunction', '[自測] moveAlongPath 應為 async 函式');
+      // 距離規則：對任兩個大點 i,j 要 d(i,j) >= max(g_i, g_j)
+      (function(){
+        var arr=[]; state.specials.forEach(function(t,k){ var ab=k.split(',').map(Number); var g=state.specialGaps.get(k); arr.push({r:ab[0],c:ab[1],g:g,type:t}); });
+        for(var i=0;i<arr.length;i++) for(var j=i+1;j<arr.length;j++){ var d=Math.abs(arr[i].r-arr[j].r)+Math.abs(arr[i].c-arr[j].c); var need=Math.max(arr[i].g, arr[j].g); console.assert(d>=need, '[自測] 大點對距應滿足 >=max(g_i,g_j): d='+d+' need='+need); }
+        // 紅/黃自身 gap=4
+        arr.forEach(function(o){ if(o.type==='red'||o.type==='orange'){ console.assert(o.g===4,'[自測] 紅/黃 gap 應為 4'); } });
+      })();
+    }catch(e){ console.warn('自測錯誤：',e); }
+  }
+
+  // Events
+  window.addEventListener('keydown', onKeyDown);
+  if(stageEl){ stageEl.addEventListener('touchstart', onTouchStart, {passive:true}); stageEl.addEventListener('touchmove', onTouchMove, {passive:false}); stageEl.addEventListener('touchend', onTouchEnd, {passive:true}); }
+  function applyBoardSize(nr,nc){ NR=Math.max(7,Math.min(25,parseInt(nr,10)||NR)); NC=Math.max(7,Math.min(25,parseInt(nc,10)||NC)); computeGeometry(); reset(); setTimeout(layoutStage,0); }
+  if(startBtn){ startBtn.addEventListener('click', function(){ var nr=parseInt(nrInput.value,10)||NR; var nc=parseInt(ncInput.value,10)||NC; var p=clamp(pInput.value,0,1); nrInput.value=nr; ncInput.value=nc; pInput.value=p.toFixed(2); P_MIX=p; applyBoardSize(nr,nc); }); }
+  if(nrInput) nrInput.value=NR; if(ncInput) ncInput.value=NC; if(pInput) pInput.value=P_MIX.toFixed(2);
+
+  // Mobile tuning
+  (function tuneForMobile(){ try{ if('ontouchstart' in window || navigator.maxTouchPoints>0){ var fe=document.querySelector('#softBlur feGaussianBlur'); if(fe) fe.setAttribute('stdDeviation','14'); } }catch(e){} })();
+
+  // Init
+  reset();
+})();
+</script>
+</body>
+</html>
