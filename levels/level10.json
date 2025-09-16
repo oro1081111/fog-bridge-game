@@ -1,37 +1,37 @@
 {
-  "rows": 15,
-  "cols": 9,
-  "minDistFromStartForKey": 5,
+  "rows": 21,
+  "cols": 13,
+  "minDistFromStartForKey": 7,
   "fog": {
     "enabled": true,
-    "playerRadius": 1.8,
-    "monsterRadius": 0.8,
-    "revealRadiusKey": 0.8,
+    "playerRadius": 1.6,
+    "monsterRadius": 0.6,
+    "revealRadiusKey": 0,
     "revealRadiusOther": 0
   },
   "specials": {
     "redCount": 4,
     "blueGreenRatio": 0.55,
     "gapRules": {
-      "redGap": 3,
-      "yellowGap": 3,
-      "othersGapMix": { "p": 0, "alt": 3 }
+      "redGap": 5,
+      "yellowGap": 6,
+      "othersGapMix": { "p": 0.7, "alt": 3 }
     }
   },
   "bridges": {
-    "start": 10,
+    "start": 8,
     "greenRefillTo": 5,
     "blueGain": 4,
     "redGain": 5,
     "yellowGain": 3
   },
   "monsters": {
-    "speedMs": 850,
+    "speedMs": 700,
     "spawnOnRed": 2,
-    "extraAfterNthBridge": { "n": 2, "delaySec": 3 }
+    "extraAfterNthBridge": { "n": 2, "delaySec": 2 }
   },
   "holes": {
-    "ratio": 0.03,
+    "ratio": 0.2,
     "minGap": 3,
     "excludeAdjTo": ["start", "red", "yellow"],
     "maxTries": 400

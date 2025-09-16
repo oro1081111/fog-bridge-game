@@ -1,6 +1,6 @@
 {
-  "rows": 17,
-  "cols": 11,
+  "rows": 15,
+  "cols": 9,
   "minDistFromStartForKey": 5,
   "fog": {
     "enabled": true,
@@ -11,27 +11,27 @@
   },
   "specials": {
     "redCount": 4,
-    "blueGreenRatio": 0.55,
+    "blueGreenRatio": 1,
     "gapRules": {
       "redGap": 4,
-      "yellowGap": 5,
-      "othersGapMix": { "p": 0.9, "alt": 3 }
+      "yellowGap": 4,
+      "othersGapMix": { "p": 0.3, "alt": 3 }
     }
   },
   "bridges": {
-    "start": 10,
+    "start": 6,
     "greenRefillTo": 5,
     "blueGain": 4,
     "redGain": 5,
     "yellowGain": 3
   },
   "monsters": {
-    "speedMs": 750,
+    "speedMs": 775,
     "spawnOnRed": 1,
     "extraAfterNthBridge": { "n": 2, "delaySec": 3 }
   },
   "holes": {
-    "ratio": 0.05,
+    "ratio": 0.08,
     "minGap": 3,
     "excludeAdjTo": ["start", "red", "yellow"],
     "maxTries": 400

@@ -1,7 +1,7 @@
 {
   "rows": 17,
   "cols": 11,
-  "minDistFromStartForKey": 5,
+  "minDistFromStartForKey": 6,
   "fog": {
     "enabled": true,
     "playerRadius": 1.8,
@@ -10,16 +10,16 @@
     "revealRadiusOther": 0
   },
   "specials": {
-    "redCount": 7,
-    "blueGreenRatio": 0.55,
+    "redCount": 4,
+    "blueGreenRatio": 0,
     "gapRules": {
       "redGap": 4,
       "yellowGap": 4,
-      "othersGapMix": { "p": 0.5, "alt": 3 }
+      "othersGapMix": { "p": 0.4, "alt": 3 }
     }
   },
   "bridges": {
-    "start": 10,
+    "start": 8,
     "greenRefillTo": 5,
     "blueGain": 4,
     "redGain": 5,
@@ -31,7 +31,7 @@
     "extraAfterNthBridge": { "n": 2, "delaySec": 3 }
   },
   "holes": {
-    "ratio": 0.06,
+    "ratio": 0.08,
     "minGap": 3,
     "excludeAdjTo": ["start", "red", "yellow"],
     "maxTries": 400

@@ -10,7 +10,7 @@
       --text:#e5e7eb; --muted:#93a3b8; --accent:#2563eb; --accent2:#22c55e;
       --safe-top: env(safe-area-inset-top, 0px);
     }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Helvetica,Arial}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Helvetica,Arial;overflow-x:hidden;}
     .page{min-height:100dvh;display:flex;flex-direction:column}
 
     /* Header */
@@ -22,13 +22,34 @@
     /* Content */
     .content{flex:1;display:flex;flex-direction:column;gap:14px;padding:14px;max-width:1100px;margin:0 auto;width:100%}
     .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
-    .card{background:var(--card);border:1px solid var(--card-bd);border-radius:14px;padding:12px;cursor:pointer;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}
+    .card{background:var(--card);border:1px solid var(--card-bd);border-radius:14px;padding:12px;cursor:pointer;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease;width:100%;box-sizing:border-box;}
     .card:hover{transform:translateY(-2px);border-color:var(--card-bd-hover);box-shadow:0 8px 20px rgba(0,0,0,.25)}
     .card .t{font-weight:800;margin-bottom:6px}
     .card .d{font-size:12px;color:var(--muted)}
 
-    .cta-wrap{display:flex;justify-content:center;margin-top:6px; flex-wrap:wrap; white-space:normal; overflow-x:visible;}
-    .cta{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#fff;padding:10px 18px;border-radius:999px;font-weight:800;letter-spacing:.5px;cursor:pointer}
+    .cta-wrap{
+      display:block;
+      width:100%;
+      max-width:100vw;
+      margin:16px 0 0 0;
+      padding:0;
+      box-sizing:border-box;
+    }
+    .cta{
+      background:linear-gradient(90deg,var(--accent),var(--accent2));
+      border:none;
+      color:#fff;
+      padding:10px 18px;
+      border-radius:999px;
+      font-weight:800;
+      letter-spacing:.5px;
+      cursor:pointer;
+      width:100%;
+      max-width:100%;
+      box-sizing:border-box;
+      display:block;
+      margin:0 auto;
+    }
 
     .footnote{ text-align:center;font-size:12px;color:var(--muted);opacity:.85; margin-top:6px }
 
@@ -43,6 +64,22 @@
 
     @media (max-width:640px){
       .title{font-size:16px}
+      .content{padding:0 12px;box-sizing:border-box;}
+      .grid{grid-template-columns:1fr;}
+      .card{width:100%;box-sizing:border-box;}
+      .cta-wrap{
+        width:100%;
+        margin:12px 0 0 0;
+        padding:0;
+        box-sizing:border-box;
+      }
+      .cta{
+        width:100%;
+        min-width:0;
+        margin:0;
+        border-radius:999px;
+        box-sizing:border-box;
+      }
     }
   </style>
 </head>
@@ -61,29 +98,45 @@
 
     <main class="content">
       <section class="grid" id="levelGrid">
-        <div class="card" data-level="level1" data-title="第一關：入門">
-          <div class="t">第一關：新手</div>
+        <div class="card" data-level="level1" data-title="第一關：白晝">
+          <div class="t">第一關：白晝</div>
           <div class="d">11×7｜新手友善</div>
         </div>
-        <div class="card" data-level="level2" data-title="第二關：追擊">
+        <div class="card" data-level="level2" data-title="第二關：迷霧">
           <div class="t">第二關：迷霧</div>
           <div class="d">11×7｜迷霧模式</div>
         </div>
-        <div class="card" data-level="level3" data-title="第三關：建橋">
+        <div class="card" data-level="level3" data-title="第三關：怪物">
           <div class="t">第三關：怪物</div>
           <div class="d">15×9｜大量怪物</div>
         </div>
-        <div class="card" data-level="level4" data-title="第四關：稀疏">
+        <div class="card" data-level="level4" data-title="第四關：天坑">
           <div class="t">第四關：天坑</div>
           <div class="d">15×9｜大量空洞</div>
         </div>
-        <div class="card" data-level="level5" data-title="第五關：迷霧">
-          <div class="t">第五關：荒地</div>
+        <div class="card" data-level="level5" data-title="第五關：藍星">
+          <div class="t">第五關：藍星</div>
+          <div class="d">15×9｜充滿藍點</div>
+        </div>
+        <div class="card" data-level="level6" data-title="第六關：綠地">
+          <div class="t">第六關：綠地</div>
+          <div class="d">17×11｜只有綠點</div>
+        </div>
+        <div class="card" data-level="level7" data-title="第七關：突襲">
+          <div class="t">第七關：突襲</div>
+          <div class="d">17×11｜怪物隱形</div>
+        </div>
+        <div class="card" data-level="level8" data-title="第八關：荒地">
+          <div class="t">第八關：荒地</div>
           <div class="d">17×11｜密度降低</div>
         </div>
-        <div class="card" data-level="level6" data-title="第六關：資源稀缺">
-          <div class="t">第六關：七鑰</div>
-          <div class="d">17×11｜七把鑰匙</div>
+        <div class="card" data-level="level9" data-title="第九關：七鑰">
+          <div class="t">第九關：七鑰</div>
+          <div class="d">21×13｜七把鑰匙</div>
+        </div>
+        <div class="card" data-level="level10" data-title="第六關：終末">
+          <div class="t">第十關：終末</div>
+          <div class="d">21×13｜最終關卡</div>
         </div>
       </section>
 

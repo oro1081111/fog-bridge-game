@@ -10,7 +10,7 @@
     "revealRadiusOther": 0
   },
   "specials": {
-    "redCount": 3,
+    "redCount": 4,
     "blueGreenRatio": 0.4,
     "gapRules": {
       "redGap": 3,
@@ -26,7 +26,7 @@
     "yellowGain": 3
   },
   "monsters": {
-    "speedMs": 600,
+    "speedMs": 650,
     "spawnOnRed": 1,
     "extraAfterNthBridge": { "n": 2, "delaySec": 1 }
   },
